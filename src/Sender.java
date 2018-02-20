@@ -55,7 +55,9 @@ public class Sender {
 				System.out.println("Sending packet#" + i + "...");
 				socket.send(packets[i - 1]);
 				System.out.println(
-						"Packet#" + i + " containing binary[" + ((i - 1) * chunkSize) + " - " + (i * chunkSize)+ "] sent successfully.");
+						"Packet#" + i + 
+					" containing binary[" + ((i - 1) * chunkSize) + " - " + (i * chunkSize)+ "] " +
+					"sent successfully.");
 				socket.receive(responses[i]);
 			}
 		} catch(IOException e) {

@@ -32,11 +32,11 @@ public class Server {
 					dis.readFully(binaryArray);
 					dis.close();
 					
-					// receive a request
+					// receive a request from the client
 					DatagramPacket request = new DatagramPacket(new byte[1024], 1024);
 					socket.receive(request);
 					
-					// divide the binary into twelve response packets to send
+					// array to hold response packets 
 					DatagramPacket[] responsePackets = new DatagramPacket[MAX_PACKET];
 					
 					// equally divided segment size of the file
@@ -70,7 +70,7 @@ public class Server {
 								request.getAddress(), request.getPort());
 					}
 							
-					// send the response packets
+					// send all the response packets
 					for(int i = 1; i <= MAX_PACKET; i ++) {
 						System.out.println("Sending packet#" + i + "...");
 						socket.send(responsePackets[i - 1]);

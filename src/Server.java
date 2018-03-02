@@ -12,7 +12,7 @@ public class Server {
 	private static boolean running = true;
 
 	/** The running. */
-	private static final boolean TEST = false;
+	private static final boolean TEST = true;
 
 	/** The file path. */
 	private static String filePath;
@@ -37,7 +37,7 @@ public class Server {
 	 */
 	public static void main(String args[]) {
 		if (TEST) {
-			filePath = ".\\in.txt";
+			filePath = ".\\in.jpg";
 		} else {
 			try {
 				BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));

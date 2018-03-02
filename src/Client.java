@@ -11,7 +11,7 @@ public class Client {
 	private static boolean running = true;
 
 	/** The file path. */
-	private static String filePath = ".\\out.txt"; //where the output file is written to
+	private static String filePath = ".\\out.jpg"; //where the output file is written to
 
 	/** The port. */
 	private static int port = 3000; // port to transmit on
@@ -55,10 +55,10 @@ public class Client {
 				PrintWriter fileOut = new PrintWriter(filePath);
 				//convert ArrayList of byte arrays to a single byte array
 				byte[] fileBytes=  getBytes(dataSegments);
-				String payLoadText = new String(fileBytes, "UTF-8");
-				//write file
-				fileOut.println(payLoadText);
-				fileOut.close();
+				try (FileOutputStream fos = new FileOutputStream(filePath)) {
+					   fos.write(fileBytes);
+					   fos.close();
+					}
 
 				for (byte[] segment : dataSegments) {
 					String testString = new String(segment, "UTF-8");
@@ -126,7 +126,6 @@ public class Client {
 		System.out.println("Start byte offset: " + start);
 		System.out.println("End byte offset: " + end);
 		System.out.println("Byte sent: " + payLoadString);
-		System.out.println("Text sent: ");
 		System.out.println(payLoadText);
 		System.out.println("*********************************************************");
 	}

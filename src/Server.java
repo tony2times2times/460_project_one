@@ -53,6 +53,7 @@ public class Server {
 					// byte array to hold each segment of file
 					byte[] packet = new byte[packetSize];
 					
+					// initialize all the packets
 					for(int i = 0; i < MAX_PACKET; i ++) {
 						
 						// overhead of packet

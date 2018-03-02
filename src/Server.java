@@ -60,7 +60,7 @@ public class Server {
 						packet[1] = MAX_PACKET;
 
 						// segment of packet
-						for(int j = 0; j < segmentSize; j++) {
+						for(int j = 0; j < segmentSize; j ++) {
 							packet[j + OVERHEAD] = binaryArray[binaryPointer++];
 						}
 						

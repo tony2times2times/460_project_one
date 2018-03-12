@@ -19,24 +19,23 @@ public class Server {
 	/** total bytes reserved for overhead */
 	private static final int OVERHEAD = 2;
 	
-	public static void main(String filePath) {
+	public static void main(String[] args) {
 		
 		try (DatagramSocket socket = new DatagramSocket(PORT)){
 			while(true) {
 				try {
-					// read the binary file
-					File file = new File(filePath);
+					File file = new File(args[0]);
 					int fileSize = (int) file.length();
 					byte[] binaryArray = new byte[fileSize];
 					DataInputStream dis = new DataInputStream(new FileInputStream(file));
 					dis.readFully(binaryArray);
 					dis.close();
 					
-					// receive a request from the client
+					// receive a request
 					DatagramPacket request = new DatagramPacket(new byte[1024], 1024);
 					socket.receive(request);
 					
-					// array to hold response packets 
+					// divide the binary into twelve response packets to send
 					DatagramPacket[] responsePackets = new DatagramPacket[MAX_PACKET];
 					
 					// equally divided segment size of the file
@@ -53,7 +52,6 @@ public class Server {
 					// byte array to hold each segment of file
 					byte[] packet = new byte[packetSize];
 					
-					// initialize all the packets
 					for(int i = 0; i < MAX_PACKET; i ++) {
 						
 						// overhead of packet
@@ -61,7 +59,7 @@ public class Server {
 						packet[1] = MAX_PACKET;
 
 						// segment of packet
-						for(int j = 0; j < segmentSize; j ++) {
+						for(int j = 0; j < segmentSize; j++) {
 							packet[j + OVERHEAD] = binaryArray[binaryPointer++];
 						}
 						
@@ -70,7 +68,7 @@ public class Server {
 								request.getAddress(), request.getPort());
 					}
 							
-					// send all the response packets
+					// send the response packets
 					for(int i = 1; i <= MAX_PACKET; i ++) {
 						System.out.println("Sending packet#" + i + "...");
 						socket.send(responsePackets[i - 1]);

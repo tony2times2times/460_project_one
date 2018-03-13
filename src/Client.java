@@ -37,7 +37,7 @@ public class Client {
 	 */
 	public static void main(String[] args) throws Exception {
 		InetAddress hostAddress = InetAddress.getByName("localhost");
-		DatagramSocket datagramSocket = new DatagramSocket(port);
+		DatagramSocket datagramSocket = new DatagramSocket(0);
 		ArrayList<byte[]> dataSegments = new ArrayList<byte[]>();
 
 		while (running) {

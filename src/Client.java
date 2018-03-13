@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 /**
  * The Class Client recieves datagrams and assembles a file from those datagrams
@@ -27,6 +28,12 @@ public class Client {
 
 	/** The next packet. */
 	private static int nextPacket = 1; //start looking for the first packet
+	
+	/** The audit */
+	private static final Logger audit = Logger.getLogger("requests");
+
+	/** The errors */
+	private static final Logger errors = Logger.getLogger("errors");
 
 
 	/**
@@ -62,7 +69,7 @@ public class Client {
 				//end client
 				running = false;
 			}
-			if (dataSegment[0] == nextPacket) {
+			else if (dataSegment[0] == nextPacket) {
 				dataSegments.add(dataSegment);
 				nextPacket++;
 				printPacket(dataSegment);
@@ -103,6 +110,6 @@ public class Client {
 		int packet = (int) dataSegment[0];
 		int start = (packet  - 1) * payloadSize + 1;
 		int end = (packet - 1) * payloadSize + payloadSize;
-		System.out.println(packet + " - " + start + " - " + end);
+		audit.info("[packet#" + packet + "]-" + "[" + start + "]-" + "[" + end + "]\n");
 	}
 }

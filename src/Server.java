@@ -127,7 +127,7 @@ public class Server {
 	private static void printPacket(byte[] dataSegment) {
 		
 		int currentPacket = (int) dataSegment[0];
-		int start = (currentPacket - 1) * PAYLOAD_SIZE;
+		int start = (currentPacket - 1) * PAYLOAD_SIZE + 1;
 		int end = (currentPacket - 1) * PAYLOAD_SIZE + PAYLOAD_SIZE;
 
 		audit.info("[packet#" + dataSegment[0] + "]-" + "[" + start + "]-" + "[" + end + "]\n");

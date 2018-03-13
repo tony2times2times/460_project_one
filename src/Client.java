@@ -52,19 +52,13 @@ public class Client {
 			if (dataSegment[1] == nextPacket && dataSegment[1] != 0) {
 				dataSegments.add(dataSegment);
 				printPacket(dataSegment);
-				PrintWriter fileOut = new PrintWriter(filePath);
 				//convert ArrayList of byte arrays to a single byte array
 				byte[] fileBytes=  getBytes(dataSegments);
+				//write the file
 				try (FileOutputStream fos = new FileOutputStream(filePath)) {
 					   fos.write(fileBytes);
 					   fos.close();
 					}
-
-				for (byte[] segment : dataSegments) {
-					String testString = new String(segment, "UTF-8");
-					System.out.println(testString);
-				}
-
 				//end client
 				running = false;
 			}
@@ -106,27 +100,9 @@ public class Client {
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 */
 	static void printPacket(byte[] dataSegment) throws UnsupportedEncodingException {
-		// log packet info
-		int currentPacket = (int) dataSegment[0];
-		int totalPackets = (int) dataSegment[1];
-		int start = currentPacket * payloadSize;
-		int end = currentPacket * payloadSize + payloadSize;
-		String payLoadString = null;
-		byte[] payLoadArray = new byte[payloadSize];
-		for (int i = overHead; i < packetSize; i++) {
-			payLoadString = payLoadString + dataSegment[i] + ", ";
-			payLoadArray[i - overHead] = dataSegment[i];
-		}
-		// remove original null value and ending comma
-		payLoadString = payLoadString.substring(4, payLoadString.length() - 2);
-		String payLoadText = null;
-		payLoadText = new String(payLoadArray, "UTF-8");
-		System.out.println("total number of packets: " + totalPackets);
-		System.out.println("Packet Number: " + currentPacket);
-		System.out.println("Start byte offset: " + start);
-		System.out.println("End byte offset: " + end);
-		System.out.println("Byte sent: " + payLoadString);
-		System.out.println(payLoadText);
-		System.out.println("*********************************************************");
+		int packet = (int) dataSegment[0];
+		int start = (packet  - 1) * payloadSize + 1;
+		int end = (packet - 1) * payloadSize + payloadSize;
+		System.out.println(packet + " - " + start + " - " + end);
 	}
 }

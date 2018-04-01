@@ -25,7 +25,7 @@ Upload the completed Java code to your dropbox.
 
 []	Provide trivial flow control – based on the send window. You should support arbitrary window sizes. Allow multiple packets to be outstanding at any time. The window size is supplied by the -w command-line option. Optionally, you may choose to set this window size to 1.
 
-[X]	File data will be text. 
+[]	File data will be text. 
 
 []	Because we are doing this between two processes on a single machine, latency is near 0, and no network faults can occur. As a result, you should introduce errors to test the correctness of your implementation. The Sender and Receiver programs must both accept options to force packets to be lost or corrupted at both processes. 
 

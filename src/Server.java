@@ -28,6 +28,8 @@ public class Server {
 	private static final int DEFAULT_WINDOW = 4;
 	private static final double DEFAULT_DATAGRAM = 0.25;
 	private static final String DEFAULT_FILEPATH = "test.txt";
+	
+	private static final int OVERHEAD = 12;
 
 	/** Logger */
 	private static final Logger audit = Logger.getLogger("requests");
@@ -35,6 +37,7 @@ public class Server {
 	
 	/** Private members */
 	private static int sizeOfPacket;
+	private static int payloadSize;
 	private static int timeoutInterval;
 	private static int sizeOfWindow;
 	private static double datagramPercentage;
@@ -71,7 +74,7 @@ public class Server {
 		/**
 		 * Define command line options 
 		 **/
-		// hold argument options
+		// hold command line argument options
 		Options options = new Options();
 		
 		// size option
@@ -130,9 +133,11 @@ public class Server {
 		if(cmd.hasOption(OPTION_SIZE_LONG)) {
 			// size of packet specified by user
 			sizeOfPacket = Integer.parseInt( cmd.getOptionValue(OPTION_SIZE_LONG) );
+			payloadSize = sizeOfPacket - OVERHEAD;
 		} else {
 			// size of packet set to default 
 			sizeOfPacket = DEFAULT_PACKET_SIZE;
+			payloadSize = sizeOfPacket - OVERHEAD;
 		}
 		
 		if(cmd.hasOption(OPTION_TIMEOUT_LONG)) {
@@ -167,6 +172,14 @@ public class Server {
 			filePath = DEFAULT_FILEPATH;
 		}
 		
+		if(cmd.hasOption(OPTION_HELP_LONG)) {
+			// help asked from the user
+			formatter.printHelp(Server.class.getSimpleName(), options);
+			System.exit(0);
+		} else {	
+			// help is not asked
+		}
+		
 		if( !cmd.getArgList().isEmpty() ) {
 			// receiver address set by user
 			byte[] hostAddress = cmd.getArgList().iterator().next().getBytes();
@@ -189,27 +202,40 @@ public class Server {
 			// receiver address set to default
 			receiverPort = DEFAULT_PORT;
 		}
-			
+		
+		/**
+		 * Read the specified file
+		 **/
+		// initialize file object
+		File file = new File(filePath);
+		// initialize file size
+		int fileLength = (int) file.length();
+		// initialize data segment array
+		byte[] data = new byte[fileLength];
+		FileInputStream in;
+		try {
+			// read the file and store binary data into data array
+			in = new FileInputStream(file);
+			in.read(data);
+			in.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} 
+		
+		/**
+		 * Divide the file data into segments to send
+		 **/
+		ArrayList<byte[]> dataSegments = getDataSegments(data, fileLength);
+		
 		/**
 		 * Establish Server Socket
-		 * Read the file
-		 * Divide the file into segments
 		 * Send the packets ********** acknowledge packet + timeout need to be implemented
 		 */		
 		try ( DatagramSocket datagramSocket = new DatagramSocket(receiverPort) ) {
 			while (true) {
 			 	try {
-					// read the specified file
-					File file = new File(filePath);
-					int fileLength = (int) file.length();
-					byte[] data = new byte[fileLength];
-					FileInputStream in = new FileInputStream(file);
-					in.read(data);
-					in.close();
-					
-					// divide the file into data segments
-					ArrayList<byte[]> dataSegments = getDataSegments(data);
-					
 					// Send the data packets
 					for (byte[] dataSegment : dataSegments) {
 						DatagramPacket packet = new DatagramPacket( dataSegment, dataSegment.length, receiverAddress, receiverPort );
@@ -219,7 +245,7 @@ public class Server {
 					
 					// close the server socket
 					datagramSocket.close();
-					// break the loop
+					// execute the loop only once for now
 					break;
 				} catch (IOException | RuntimeException ex) {
 					errors.log(Level.SEVERE, ex.getMessage(), ex);
@@ -230,38 +256,38 @@ public class Server {
 		}
 	}
 
-
+	
 	/**
 	*	Divides the data into data segments
 	*	@param byte array that holds all data
-	*	@return data segments arraylist
+	*	@return data segments ArrayList
 	*/
-	private static ArrayList<byte[]> getDataSegments(byte[] data) {
+	private static ArrayList<byte[]> getDataSegments(byte[] data, int fileLength) {
 		
-		/** data segments to hold segments */
+		// array list to hold arrays of binary data segments
 		ArrayList<byte[]> dataSegments = new ArrayList<byte[]>();
-		int fileSize = data.length;
 		
-		/** if the file is not perfectly divisible by payload add a buffer byte to hold the rest */
-		int numPackets = ( fileSize % PAYLOAD_SIZE == 0 ) ?
-				( fileSize / PAYLOAD_SIZE) :
-				( fileSize / PAYLOAD_SIZE + 1);	
+		// if the file is not perfectly divisible by payload add a buffer byte to hold the rest 
+		int numPackets = ( fileLength % payloadSize == 0 ) ?
+				( fileLength / payloadSize) :
+				( fileLength / payloadSize + 1);	
 		
-		/** pointer at data */
+		// pointer to transfer data onto arrays of binary data segments
 		int dataPointer = 0;
+		// packet counter
 		int currentPacket = 1;
 		
-		/** fill each packet */
+		// fill each packet
 		for (int i = 0; i < numPackets; i ++) {
-			byte[] dataSegment = new byte[PACKET_SIZE];
+			byte[] dataSegment = new byte[sizeOfPacket];
 			
-			/** overhead */
+			// overhead
 			dataSegment[0] = (byte) currentPacket ++;
 			dataSegment[1] = (byte) numPackets;
 			
-			/** payload */
-			for (int j = OVERHEAD_SIZE; j < PACKET_SIZE; j ++) {
-				if (dataPointer < fileSize) {
+			// payload
+			for (int j = OVERHEAD; j < sizeOfPacket; j ++) {
+				if (dataPointer < fileLength) {
 					dataSegment[j] = data[dataPointer ++];
 				}
 			}
@@ -277,8 +303,8 @@ public class Server {
 	private static void printPacket(byte[] dataSegment) {
 		
 		int currentPacket = (int) dataSegment[0];
-		int start = (currentPacket - 1) * PAYLOAD_SIZE + 1;
-		int end = (currentPacket - 1) * PAYLOAD_SIZE + PAYLOAD_SIZE;
+		int start = (currentPacket - 1) * payloadSize + 1;
+		int end = (currentPacket - 1) * payloadSize + payloadSize;
 
 		audit.info("[packet#" + dataSegment[0] + "]-" + "[" + start + "]-" + "[" + end + "]\n");
 	}

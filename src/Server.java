@@ -233,7 +233,7 @@ public class Server {
 		 * Establish server socket
 		 * Receive a request from a client
 		 * Send the packets to the requester
-		 * Close the socket socket
+		 * Close the server socket
 		 */		
 		try ( DatagramSocket datagramSocket = new DatagramSocket(SERVER_PORT) ) {
 			while ( !datagramSocket.isClosed() ) {

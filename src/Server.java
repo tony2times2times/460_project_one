@@ -22,13 +22,13 @@ public class Server {
 
 	/** Default Values */
 	private static final String DEFAULT_HOSTNAME = "localhost";
-	private static final int DEFAULT_PORT = 3000;
+	private static final int DEFAULT_PORT = 0;
 	private static final int DEFAULT_PACKET_SIZE = 64;
 	private static final int DEFAULT_TIMEOUT = 2000;
-	private static final int DEFAULT_WINDOW = 4;
+	private static final int DEFAULT_WINDOW = 1;
 	private static final double DEFAULT_DATAGRAM = 0.25;
 	private static final String DEFAULT_FILEPATH = "test.txt";
-	
+	private static final int SERVER_PORT = 3000;
 	private static final int OVERHEAD = 12;
 
 	/** Logger */
@@ -47,22 +47,22 @@ public class Server {
 
 	/** Explanatory Variables */
 	private static final String OPTION_SIZE_SHORT = "s";
-	private static final String OPTION_SIZE_LONG = "size";
+	private static final String OPTION_SIZE = "size";
 	private static final String OPTION_SIZE_DESCRIPTION = "size of packet";
 	private static final String OPTION_TIMEOUT_SHORT = "t";
-	private static final String OPTION_TIMEOUT_LONG = "timeout";
+	private static final String OPTION_TIMEOUT = "timeout";
 	private static final String OPTION_TIMEOUT_DESCRIPTION = "timeout interval";
 	private static final String OPTION_WINDOW_SHORT = "w";
-	private static final String OPTION_WINDOW_LONG = "window";
+	private static final String OPTION_WINDOW = "window";
 	private static final String OPTION_WINDOW_DESCRIPTION = "sliding window size";
 	private static final String OPTION_DATAGRAM_SHORT = "d";
-	private static final String OPTION_DATAGRAM_LONG = "datagram";
+	private static final String OPTION_DATAGRAM = "datagram";
 	private static final String OPTION_DATAGRAM_DESCRIPTION = "percentage of datagram to corrupt, delay, or drop";
 	private static final String OPTION_HELP_SHORT = "h";
-	private static final String OPTION_HELP_LONG = "help";
+	private static final String OPTION_HELP = "help";
 	private static final String OPTION_HELP_DESCRIPTION = "show options";
 	private static final String OPTION_FILE_SHORT = "f";
-	private static final String OPTION_FILE_LONG = "file";
+	private static final String OPTION_FILE = "file";
 	private static final String OPTION_FILE_DESCRIPTION = "file path";
 	
 	/**
@@ -78,32 +78,32 @@ public class Server {
 		Options options = new Options();
 		
 		// size option
-		Option sizeOption = new Option(OPTION_SIZE_SHORT, OPTION_SIZE_LONG, true, OPTION_SIZE_DESCRIPTION);
+		Option sizeOption = new Option(OPTION_SIZE_SHORT, OPTION_SIZE, true, OPTION_SIZE_DESCRIPTION);
 		sizeOption.setRequired(false);
 		options.addOption(sizeOption);
 		
 		// timeout option
-		Option timeoutOption = new Option(OPTION_TIMEOUT_SHORT, OPTION_TIMEOUT_LONG, true, OPTION_TIMEOUT_DESCRIPTION);
+		Option timeoutOption = new Option(OPTION_TIMEOUT_SHORT, OPTION_TIMEOUT, true, OPTION_TIMEOUT_DESCRIPTION);
 		timeoutOption.setRequired(false);
 		options.addOption(timeoutOption);
 		
 		// window option
-		Option windowOption = new Option(OPTION_WINDOW_SHORT, OPTION_WINDOW_LONG, true, OPTION_WINDOW_DESCRIPTION);
+		Option windowOption = new Option(OPTION_WINDOW_SHORT, OPTION_WINDOW, true, OPTION_WINDOW_DESCRIPTION);
 		windowOption.setRequired(false);
 		options.addOption(windowOption);
 		
 		// datagram option
-		Option datagramOption = new Option(OPTION_DATAGRAM_SHORT, OPTION_DATAGRAM_LONG, true, OPTION_DATAGRAM_DESCRIPTION);
+		Option datagramOption = new Option(OPTION_DATAGRAM_SHORT, OPTION_DATAGRAM, true, OPTION_DATAGRAM_DESCRIPTION);
 		datagramOption.setRequired(false);
 		options.addOption(datagramOption);
 		
 		// file option
-		Option fileOption = new Option(OPTION_FILE_SHORT, OPTION_FILE_LONG, true, OPTION_FILE_DESCRIPTION);
+		Option fileOption = new Option(OPTION_FILE_SHORT, OPTION_FILE, true, OPTION_FILE_DESCRIPTION);
 		fileOption.setRequired(false);
 		options.addOption(fileOption);
 		 
 		// help option
-		Option helpOption = new Option(OPTION_HELP_SHORT, OPTION_HELP_LONG, false, OPTION_HELP_DESCRIPTION);
+		Option helpOption = new Option(OPTION_HELP_SHORT, OPTION_HELP, false, OPTION_HELP_DESCRIPTION);
 		helpOption.setRequired(false);
 		options.addOption(helpOption);
 		
@@ -130,9 +130,9 @@ public class Server {
 		/** 
 		 * Interrogate command line arguments 
 		 **/
-		if(cmd.hasOption(OPTION_SIZE_LONG)) {
+		if(cmd.hasOption(OPTION_SIZE)) {
 			// size of packet specified by user
-			sizeOfPacket = Integer.parseInt( cmd.getOptionValue(OPTION_SIZE_LONG) );
+			sizeOfPacket = Integer.parseInt( cmd.getOptionValue(OPTION_SIZE) );
 			payloadSize = sizeOfPacket - OVERHEAD;
 		} else {
 			// size of packet set to default 
@@ -140,39 +140,39 @@ public class Server {
 			payloadSize = sizeOfPacket - OVERHEAD;
 		}
 		
-		if(cmd.hasOption(OPTION_TIMEOUT_LONG)) {
+		if(cmd.hasOption(OPTION_TIMEOUT)) {
 			// timeout interval specified by user
-			timeoutInterval = Integer.parseInt( cmd.getOptionValue(OPTION_TIMEOUT_LONG) );
+			timeoutInterval = Integer.parseInt( cmd.getOptionValue(OPTION_TIMEOUT) );
 		} else {
 			// timeout interval set to default
 			timeoutInterval = DEFAULT_TIMEOUT;
 		}
 		
-		if(cmd.hasOption(OPTION_WINDOW_LONG)) {
+		if(cmd.hasOption(OPTION_WINDOW)) {
 			// sliding window size specified by user
-			sizeOfWindow = Integer.parseInt( cmd.getOptionValue(OPTION_WINDOW_LONG) );
+			sizeOfWindow = Integer.parseInt( cmd.getOptionValue(OPTION_WINDOW) );
 		} else {
 			// sliding window size set to default
 			sizeOfWindow = DEFAULT_WINDOW;
 		}
 		
-		if(cmd.hasOption(OPTION_DATAGRAM_LONG)) {
+		if(cmd.hasOption(OPTION_DATAGRAM)) {
 			// datagram percentage specified by user
-			datagramPercentage = Double.parseDouble( cmd.getOptionValue(OPTION_DATAGRAM_LONG) );
+			datagramPercentage = Double.parseDouble( cmd.getOptionValue(OPTION_DATAGRAM) );
 		} else {
 			// datagram percentage set to default
 			datagramPercentage = DEFAULT_DATAGRAM;
 		}
 		
-		if(cmd.hasOption(OPTION_FILE_LONG)) {
+		if(cmd.hasOption(OPTION_FILE)) {
 			// file path specified by user
-			filePath = cmd.getOptionValue(OPTION_FILE_LONG);
+			filePath = cmd.getOptionValue(OPTION_FILE);
 		} else {
 			// file path set to default
 			filePath = DEFAULT_FILEPATH;
 		}
 		
-		if(cmd.hasOption(OPTION_HELP_LONG)) {
+		if(cmd.hasOption(OPTION_HELP)) {
 			// help asked from the user
 			formatter.printHelp(Server.class.getSimpleName(), options);
 			System.exit(0);
@@ -233,9 +233,18 @@ public class Server {
 		 * Establish Server Socket
 		 * Send the packets ********** acknowledge packet + timeout need to be implemented
 		 */		
-		try ( DatagramSocket datagramSocket = new DatagramSocket(receiverPort) ) {
-			while (true) {
+		try ( DatagramSocket datagramSocket = new DatagramSocket(SERVER_PORT) ) {
+			while ( !datagramSocket.isClosed() ) {
 			 	try {
+			 		// receive a request
+			 		if(receiverPort == DEFAULT_PORT) {
+			 			byte[] requestSegment = new byte[sizeOfPacket + OVERHEAD];
+			 			DatagramPacket request = new DatagramPacket(requestSegment, requestSegment.length);
+			 			datagramSocket.receive(request);
+			 			receiverAddress = request.getAddress();
+			 			receiverPort = request.getPort();
+			 		}
+			 					 		
 					// Send the data packets
 					for (byte[] dataSegment : dataSegments) {
 						DatagramPacket packet = new DatagramPacket( dataSegment, dataSegment.length, receiverAddress, receiverPort );
@@ -245,8 +254,7 @@ public class Server {
 					
 					// close the server socket
 					datagramSocket.close();
-					// execute the loop only once for now
-					break;
+					
 				} catch (IOException | RuntimeException ex) {
 					errors.log(Level.SEVERE, ex.getMessage(), ex);
 				}

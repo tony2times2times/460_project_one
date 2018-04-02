@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.logging.*;
 
@@ -30,13 +31,14 @@ public class Server {
 	private static final String DEFAULT_FILEPATH = "test.txt";
 	private static final int SERVER_PORT = 3000;
 	private static final int OVERHEAD = 12;
+	private static final int ACK_ONLY_PACKET_SIZE = 8;
 
 	/** Logger */
 	private static final Logger audit = Logger.getLogger("requests");
 	private static final Logger errors = Logger.getLogger("errors");
 	
 	/** Private members */
-	private static int sizeOfPacket;
+	private static short sizeOfPacket;
 	private static int payloadSize;
 	private static int timeoutInterval;
 	private static int sizeOfWindow;
@@ -64,6 +66,8 @@ public class Server {
 	private static final String OPTION_FILE_SHORT = "f";
 	private static final String OPTION_FILE = "file";
 	private static final String OPTION_FILE_DESCRIPTION = "file path";
+	private static final int TWO_BYTE = 2;
+	private static final int FOUR_BYTE = 4;
 	
 	/**
 	*	Server 
@@ -132,7 +136,7 @@ public class Server {
 		 **/
 		if(cmd.hasOption(OPTION_SIZE)) {
 			// size of packet specified by user
-			sizeOfPacket = Integer.parseInt( cmd.getOptionValue(OPTION_SIZE) );
+			sizeOfPacket = Short.parseShort( cmd.getOptionValue(OPTION_SIZE) );
 			payloadSize = sizeOfPacket - OVERHEAD;
 		} else {
 			// size of packet set to default 
@@ -238,20 +242,27 @@ public class Server {
 		try ( DatagramSocket datagramSocket = new DatagramSocket(SERVER_PORT) ) {
 			while ( !datagramSocket.isClosed() ) {
 			 	try {
-			 		// receive a request
-			 		byte[] requestSegment = new byte[sizeOfPacket + OVERHEAD];
-			 		DatagramPacket request = new DatagramPacket(requestSegment, requestSegment.length);
-			 		datagramSocket.receive(request);
+			 		// receive  request from the client
+			 		byte[] requestSegment = new byte[ACK_ONLY_PACKET_SIZE];
+			 		DatagramPacket requestPacket = new DatagramPacket(requestSegment, requestSegment.length);
+			 		datagramSocket.receive(requestPacket);
 			 		
 			 		// update the receiver port and address
-			 		receiverAddress = request.getAddress();
-			 		receiverPort = request.getPort();
+			 		receiverAddress = requestPacket.getAddress();
+			 		receiverPort = requestPacket.getPort();
+			 		
+			 		// prepare ack-only packet from client
+			 		byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
+			 		DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
 			 					 		
 					// Send the data packets
 					for (byte[] dataSegment : dataSegments) {
-						DatagramPacket packet = new DatagramPacket( dataSegment, dataSegment.length, receiverAddress, receiverPort );
-						datagramSocket.send(packet);
+						DatagramPacket dataPacket = new DatagramPacket( dataSegment, dataSegment.length, receiverAddress, receiverPort );
+						datagramSocket.send(dataPacket);
 						printPacket(dataSegment);
+						datagramSocket.receive(ackOnlyPacket);
+						printPacket(ackOnlySegment);
+					
 					}
 					
 					// close the server socket
@@ -268,7 +279,8 @@ public class Server {
 
 	
 	/**
-	*	Divides the data into data segments
+	*	Divides the data and feeds it into packets 
+	*	along with the overhead
 	*	@param byte array that holds all data
 	*	@return data segments ArrayList
 	*/
@@ -283,22 +295,49 @@ public class Server {
 				( fileLength / payloadSize + 1);	
 		
 		// pointer to transfer data onto arrays of binary data segments
-		int dataPointer = 0;
-		// packet counter
-		int currentPacket = 1;
+		int payloadPointer = 0;
+		// pointer to transfer overhead
+		int overheadPointer = 0;
+		// checksum of IP packet: good by default
+		short cksumSht = 0;
+		// acknowledge number of packet
+		int acknoInt = 1;
+		// sequence number of packet
+		int seqnoInt = 1;
 		
-		// fill each packet
+		/**
+		 * Fill each packet
+		 */
 		for (int i = 0; i < numPackets; i ++) {
+			
 			byte[] dataSegment = new byte[sizeOfPacket];
+	
+			/**
+			 *  Overhead
+			 */
+			// cksum
+			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
+			System.arraycopy(cksum, 0, dataSegment, overheadPointer, TWO_BYTE);
+			overheadPointer += TWO_BYTE;
+			// len
+			byte[] len = ByteBuffer.allocate(2).putShort(sizeOfPacket).array();
+			System.arraycopy(len, 0, dataSegment, overheadPointer, TWO_BYTE);
+			overheadPointer += TWO_BYTE;
+			// ackno
+			byte[] ackno = ByteBuffer.allocate(4).putInt(acknoInt++).array();
+			System.arraycopy(ackno, 0, dataSegment, overheadPointer, FOUR_BYTE);
+			overheadPointer += FOUR_BYTE;
+			// seqno
+			byte[] seqno = ByteBuffer.allocate(4).putInt(seqnoInt++).array();
+			System.arraycopy(seqno, 0, dataSegment, overheadPointer, FOUR_BYTE);
+			overheadPointer += FOUR_BYTE;
 			
-			// overhead
-			dataSegment[0] = (byte) currentPacket ++;
-			dataSegment[1] = (byte) numPackets;
-			
-			// payload
+			/**
+			 *  Payload
+			 */
 			for (int j = OVERHEAD; j < sizeOfPacket; j ++) {
-				if (dataPointer < fileLength) {
-					dataSegment[j] = data[dataPointer ++];
+				if (payloadPointer < fileLength) {
+					dataSegment[j] = data[payloadPointer ++];
 				}
 			}
 			dataSegments.add(dataSegment);

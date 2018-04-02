@@ -230,20 +230,22 @@ public class Server {
 		ArrayList<byte[]> dataSegments = getDataSegments(data, fileLength);
 		
 		/**
-		 * Establish Server Socket
-		 * Send the packets ********** acknowledge packet + timeout need to be implemented
+		 * Establish server socket
+		 * Receive a request from a client
+		 * Send the packets to the requester
+		 * Close the socket socket
 		 */		
 		try ( DatagramSocket datagramSocket = new DatagramSocket(SERVER_PORT) ) {
 			while ( !datagramSocket.isClosed() ) {
 			 	try {
 			 		// receive a request
-			 		if(receiverPort == DEFAULT_PORT) {
-			 			byte[] requestSegment = new byte[sizeOfPacket + OVERHEAD];
-			 			DatagramPacket request = new DatagramPacket(requestSegment, requestSegment.length);
-			 			datagramSocket.receive(request);
-			 			receiverAddress = request.getAddress();
-			 			receiverPort = request.getPort();
-			 		}
+			 		byte[] requestSegment = new byte[sizeOfPacket + OVERHEAD];
+			 		DatagramPacket request = new DatagramPacket(requestSegment, requestSegment.length);
+			 		datagramSocket.receive(request);
+			 		
+			 		// update the receiver port and address
+			 		receiverAddress = request.getAddress();
+			 		receiverPort = request.getPort();
 			 					 		
 					// Send the data packets
 					for (byte[] dataSegment : dataSegments) {

@@ -255,19 +255,36 @@ public class Server {
 			 		byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
 			 		DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
 			 					 		
-					// Send the data packets
-					for (byte[] dataSegment : dataSegments) {
-						DatagramPacket dataPacket = new DatagramPacket( dataSegment, dataSegment.length, receiverAddress, receiverPort );
-						datagramSocket.send(dataPacket);
-						printPacket(dataSegment);
-						datagramSocket.receive(ackOnlyPacket);
-						printPacket(ackOnlySegment);
-					
+					// Send each data packet
+					for (int i = 0; i < dataSegments.size(); i ++) {
+						// repeat until positive acknowledgement is received
+						while(true) {
+							// create a data packet
+							DatagramPacket dataPacket = new DatagramPacket( dataSegments.get(i), dataSegments.get(i).length, receiverAddress, receiverPort );
+							// interrupt the packet
+							dataPacket = interruptPacket(dataPacket);
+							// timeout will be caught
+							try {
+								if(dataPacket != null) {
+									// packet may be corrupted but is not dropped so send
+									datagramSocket.send(dataPacket);
+									printPacket( dataPacket.getData() );
+									datagramSocket.setSoTimeout(timeoutInterval);
+									datagramSocket.receive(ackOnlyPacket);
+									printPacket(ackOnlyPacket.getData());
+									// if ackno is positive break the while loop
+								} else {
+									// packet is dropped so do not send packet 
+									printPacket(null);
+								}
+							} catch(SocketTimeoutException e) {
+								printTimeout(i);
+							}	
+						}
 					}
-					
+			
 					// close the server socket
-					datagramSocket.close();
-					
+					datagramSocket.close();		
 				} catch (IOException | RuntimeException ex) {
 					errors.log(Level.SEVERE, ex.getMessage(), ex);
 				}
@@ -346,10 +363,12 @@ public class Server {
 	}
 
 	/**
+	 * needs to be updated!
 	*	Prints packet number, start off-set and end off-set of a packet
 	*	@param packet that holds data segment
 	*/
 	private static void printPacket(byte[] dataSegment) {
+		
 		
 		int currentPacket = (int) dataSegment[0];
 		int start = (currentPacket - 1) * payloadSize + 1;
@@ -357,4 +376,41 @@ public class Server {
 
 		audit.info("[packet#" + dataSegment[0] + "]-" + "[" + start + "]-" + "[" + end + "]\n");
 	}
+	
+	/**
+	 *  Prints timeout information on the console
+	 */
+	private static void printTimeout(int i) {
+		System.out.println("Timeout " + i);
+	}
+	
+	/**
+	 * Simulates a lossy network by randomly corrupting or dropping the given packet
+	 * The chance is determined by the datagram percentage variable
+	 * @param dataPacket
+	 * @return interruptedPacket
+	 */
+	private static DatagramPacket interruptPacket(DatagramPacket dataPacket) {
+		byte[] interruptedSegment = new byte[dataPacket.getData().length];
+		DatagramPacket interruptedPacket = null;
+		double chance = Math.random();
+		boolean isDropped = chance < datagramPercentage / 2;
+		boolean isCorrupted = (chance < datagramPercentage) && (!isDropped); 
+		
+		if( isDropped ) {
+			// dropped packet is null
+		} else if( isCorrupted ) {
+			// corrupted packet has bad checksum 
+			short cksumSht = 1;
+			interruptedSegment = dataPacket.getData().clone();
+			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
+			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
+		} else {
+			// packet is intact
+			interruptedPacket = dataPacket;
+		}
+		return interruptedPacket;
+	}
+	
 }

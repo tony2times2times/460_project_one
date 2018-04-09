@@ -109,14 +109,12 @@ public class Server {
 		// array list to hold arrays of binary data segments
 		ArrayList<byte[]> dataSegments = new ArrayList<byte[]>();
 
-		// if the file is not perfectly divisible by payload add a buffer byte to hold
+		// if the file is not perfectly divisible by payload add a packet to hold
 		// the rest
-		int numPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize) : (fileLength / payloadSize + 1);
+		int numPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize) : ((fileLength / payloadSize) + 1);
 
 		// pointer to transfer data onto arrays of binary data segments
 		int payloadPointer = 0;
-		// pointer to transfer overhead
-		int overheadPointer = 0;
 		// checksum of IP packet: good by default
 		short cksumSht = 0;
 		// acknowledge number of packet
@@ -128,6 +126,8 @@ public class Server {
 		 * Fill each packet
 		 */
 		for (int i = 0; i < numPackets; i++) {
+			// pointer to transfer overhead
+			int overheadPointer = 0;
 
 			byte[] dataSegment = new byte[sizeOfPacket];
 
@@ -144,6 +144,10 @@ public class Server {
 			overheadPointer += TWO_BYTE;
 			// ackno
 			byte[] ackno = ByteBuffer.allocate(4).putInt(acknoInt++).array();
+			System.out.println("ackno: " + ackno.toString());
+			System.out.println("dataSegment: " + dataSegment.toString());
+			System.out.println("overheadPointer: " + overheadPointer);
+			System.out.println("FOUR_BYTE: " + FOUR_BYTE);
 			System.arraycopy(ackno, 0, dataSegment, overheadPointer, FOUR_BYTE);
 			overheadPointer += FOUR_BYTE;
 			// seqno

@@ -49,10 +49,12 @@ public class Client {
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket, hostAddress);
 			DataPacket packet = getDataPacket(dataSegment);
-			if (packet.isValid()) {
+			int nextPacketSeqno = 1;
+			boolean packIsNext = packet.getSeqno() == nextPacketSeqno;
+			if (packet.isValid() && packIsNext ) {
+				nextPacketSeqno++;
 				sendAck(packet.getAckno(), socket, hostAddress);
-				addPacket(packet);
-				allPackets.sort(Comparator.comparingInt(DataPacket -> DataPacket.getSeqno()));
+				allPackets.add(packet);
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
 					printPacket(dataSegment);
@@ -63,10 +65,10 @@ public class Client {
 					}
 					running = false;
 				} else {
-					printPacket(dataSegment);
+					//TODO add logging statements here
 				}
 			}
-
+			printPacket(dataSegment);
 		}
 		socket.close();
 	}
@@ -152,17 +154,6 @@ public class Client {
 		System.arraycopy(dataSegment, pointer, shortArray, 0, 4);
 		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
 		return wrappedNum.getInt();
-	}
-
-	private static boolean addPacket(DataPacket packet) {
-		for (DataPacket dataPacket : allPackets) {
-			if (dataPacket.getAckno() == packet.getAckno()) {
-				audit.info("[DUPL]");
-				return false;
-			}
-		}
-		allPackets.add(packet);
-		return true;
 	}
 
 }

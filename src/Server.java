@@ -144,10 +144,6 @@ public class Server {
 			overheadPointer += TWO_BYTE;
 			// ackno
 			byte[] ackno = ByteBuffer.allocate(4).putInt(acknoInt++).array();
-			System.out.println("ackno: " + ackno.toString());
-			System.out.println("dataSegment: " + dataSegment.toString());
-			System.out.println("overheadPointer: " + overheadPointer);
-			System.out.println("FOUR_BYTE: " + FOUR_BYTE);
 			System.arraycopy(ackno, 0, dataSegment, overheadPointer, FOUR_BYTE);
 			overheadPointer += FOUR_BYTE;
 			// seqno

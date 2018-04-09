@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.logging.*;
 
-import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -175,13 +174,63 @@ public class Server {
 	 * @param packet
 	 *            that holds data segment
 	 */
-	private static void printPacket(byte[] dataSegment) {
+	private static void printDataPacket(byte[] dataSegment) {
 
-		int currentPacket = (int) dataSegment[0];
-		int start = (currentPacket - 1) * payloadSize + 1;
-		int end = (currentPacket - 1) * payloadSize + payloadSize;
+		// get the cksum in overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		// get the seqno in overhead
+		byte[] seqnoByte = new byte[4];
+		System.arraycopy(dataSegment, 8, seqnoByte, 0, 4);
+		// buffer to turn byte to short
+		ByteBuffer buffer2 = ByteBuffer.wrap(seqnoByte);
+		int seqno = buffer2.getInt();
+				
+		int start = (seqno - 1) * payloadSize + 1;
+		int end = (seqno - 1) * payloadSize + payloadSize;
+		
+		long time = System.currentTimeMillis();
+		
+		if(cksumShort == 0) {
+			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " SENT");
+			return;
+		} else if(cksumShort == 1) {
+			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " ERR");
+		} else {
+			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " DROP");
+		}
+	}
+	
+	private static void printAckPacket(byte[] dataSegment) {
 
-		audit.info("[packet#" + dataSegment[0] + "]-" + "[" + start + "]-" + "[" + end + "]\n");
+		if(dataSegment == null) return;
+		
+		// get the cksum in overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		// get the ackno in overhead
+		byte[] acknoByte = new byte[4];
+		System.arraycopy(dataSegment, 4, acknoByte, 0, 4);
+		// buffer to turn byte to short
+		ByteBuffer buffer2 = ByteBuffer.wrap(acknoByte);
+		int ackno = buffer2.getInt();
+		
+		long time = System.currentTimeMillis();
+		
+		if(cksumShort == 0) {
+			System.out.println("AckRcvd " + ackno + "MoveWnd");
+			return;
+		} else if(cksumShort == 1) {
+			System.out.println("AckRcvd " + ackno + "ErrAck.");
+		} 
 	}
 
 	/**
@@ -206,7 +255,12 @@ public class Server {
 		boolean isCorrupted = (chance < datagramPercentage) && (!isDropped);
 
 		if (isDropped) {
-			// dropped packet is null
+			// dropped packet
+			short cksumSht = 2;
+			interruptedSegment = dataPacket.getData().clone();
+			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
+			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
 		} else if (isCorrupted) {
 			// corrupted packet has bad checksum
 			short cksumSht = 1;
@@ -401,17 +455,18 @@ public class Server {
 							dataPacket = interruptPacket(dataPacket);
 							// timeout will be caught
 							try {
-								if (dataPacket != null) {
+								if (isPacketIntact(dataPacket)) {
 									// packet may be corrupted but is not dropped so send
 									datagramSocket.send(dataPacket);
-									printPacket(dataPacket.getData());
+									printDataPacket(dataPacket.getData());
 									datagramSocket.setSoTimeout(timeoutInterval);
 									datagramSocket.receive(ackOnlyPacket);
-									printPacket(ackOnlyPacket.getData());
-									// if ackno is positive break the while loop
+									printAckPacket(ackOnlyPacket.getData());
+									//if(isPacketIntact(ackOnlyPacket)) break;
+									break;
 								} else {
 									// packet is dropped so do not send packet
-									printPacket(null);
+									printDataPacket(dataPacket.getData());
 								}
 							} catch (SocketTimeoutException e) {
 								printTimeout(i);
@@ -428,5 +483,21 @@ public class Server {
 			errors.log(Level.SEVERE, ex.getMessage(), ex);
 		}
 	}
-
+	
+	private static boolean isPacketIntact(DatagramPacket dataPacket) {
+		// get the data
+		byte[] dataSegment = dataPacket.getData();
+		// get the cksum of overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		// check Short
+		if(cksumShort == 0) {
+			return true;
+		} 
+		return false;
+	}
 }

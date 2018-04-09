@@ -114,8 +114,8 @@ public class Client {
 	static byte[] getDataSegment(DatagramSocket datagramSocket, InetAddress hostAddress) throws IOException {
 		byte[] dataSegment = new byte[packetSize];
 		DatagramPacket datagramPacket = new DatagramPacket(dataSegment, dataSegment.length);
-		//DatagramPacket out = new DatagramPacket(dataSegment, dataSegment.length, hostAddress, port);
-		//datagramSocket.send(out);
+		DatagramPacket out = new DatagramPacket(dataSegment, dataSegment.length, hostAddress, port);
+		datagramSocket.send(out);
 		datagramSocket.receive(datagramPacket);
 		dataSegment = datagramPacket.getData();
 		return dataSegment;
@@ -135,7 +135,7 @@ public class Client {
 		pointer += 4;
 		int dataSize = (dataSegment.length - OVER_HEAD);
 		byte[] data = new byte[dataSize];
-		System.arraycopy(dataSegment, pointer, data, 0, dataSegment.length);
+		System.arraycopy(dataSegment, pointer, data, 0, dataSize);
 		DataPacket dataPacket = new DataPacket(checksum, length, ackno, seqno, totalPackets, data);
 		return dataPacket;
 	}
@@ -148,7 +148,7 @@ public class Client {
 	}
 
 	private static int getInt(byte[] dataSegment, int pointer) {
-		byte[] shortArray = new byte[2];
+		byte[] shortArray = new byte[4];
 		System.arraycopy(dataSegment, pointer, shortArray, 0, 4);
 		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
 		return wrappedNum.getInt();

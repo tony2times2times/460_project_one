@@ -36,7 +36,7 @@ public class Server {
 	private static final double DEFAULT_DATAGRAM = 0.25;
 	private static final String DEFAULT_FILEPATH = "test.txt";
 	private static final int SERVER_PORT = 3000;
-	private static final int OVERHEAD = 12;
+	private static final int OVERHEAD = 16;
 	private static final int ACK_ONLY_PACKET_SIZE = 8;
 
 	/** Logger */
@@ -111,7 +111,8 @@ public class Server {
 
 		// if the file is not perfectly divisible by payload add a packet to hold
 		// the rest
-		int numPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize) : ((fileLength / payloadSize) + 1);
+		int numPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize)
+				: ((fileLength / payloadSize) + 1);
 
 		// pointer to transfer data onto arrays of binary data segments
 		int payloadPointer = 0;
@@ -150,7 +151,10 @@ public class Server {
 			byte[] seqno = ByteBuffer.allocate(4).putInt(seqnoInt++).array();
 			System.arraycopy(seqno, 0, dataSegment, overheadPointer, FOUR_BYTE);
 			overheadPointer += FOUR_BYTE;
-
+			// numPackets
+			byte[] numPacketsArr = ByteBuffer.allocate(4).putInt(numPackets).array();
+			System.arraycopy(numPacketsArr, 0, dataSegment, overheadPointer, FOUR_BYTE);
+			overheadPointer += FOUR_BYTE;
 			/**
 			 * Payload
 			 */
@@ -163,7 +167,6 @@ public class Server {
 		}
 		return dataSegments;
 	}
-
 
 	/**
 	 * needs to be updated! Prints packet number, start off-set and end off-set of a
@@ -365,7 +368,7 @@ public class Server {
 		}
 		return null;
 	}
-	
+
 	/**
 	 * Establish server socket Receive a request from a client Send the packets to
 	 * the requester Close the server socket

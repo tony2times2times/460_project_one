@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.logging.Logger;
 
 /**
@@ -12,7 +14,7 @@ public class Client {
 	private static boolean running = true;
 
 	/** The file path. */
-	private static String filePath = ".\\out.jpg"; //where the output file is written to
+	private static String filePath = ".\\out.jpg"; // where the output file is written to
 
 	/** The port. */
 	private static int port = 3000; // port to transmit on
@@ -21,81 +23,75 @@ public class Client {
 	private static int packetSize = 64;// in bytes
 
 	/** The over head. */
-	private static int overHead = 2; // total bytes reserved for overhead
+	private static final int OVER_HEAD = 16; // total bytes reserved for overhead
 
 	/** The payload size. */
-	private static int payloadSize = packetSize - overHead;
+	private static int payloadSize = packetSize - OVER_HEAD;
 
-	/** The next packet. */
-	private static int nextPacket = 1; //start looking for the first packet
-	
 	/** The audit */
 	private static final Logger audit = Logger.getLogger("requests");
 
 	/** The errors */
 	private static final Logger errors = Logger.getLogger("errors");
-
+	static ArrayList<DataPacket> allPackets = new ArrayList<DataPacket>();
 
 	/**
 	 * The main method.
 	 *
-	 * @param args the arguments
-	 * @throws Exception the exception
+	 * @param args
+	 *            the arguments
+	 * @throws Exception
+	 *             the exception
 	 */
 	public static void main(String[] args) throws Exception {
 		InetAddress hostAddress = InetAddress.getByName("localhost");
-		DatagramSocket datagramSocket = new DatagramSocket(0);
-		ArrayList<byte[]> dataSegments = new ArrayList<byte[]>();
-
+		DatagramSocket socket = new DatagramSocket(0);
 		while (running) {
-			byte[] dataSegment = new byte[packetSize];
-			DatagramPacket datagramPacket = new DatagramPacket(dataSegment, dataSegment.length);
-			DatagramPacket out = new DatagramPacket(dataSegment, dataSegment.length, hostAddress, port);
-			datagramSocket.send(out);
-
-			datagramSocket.receive(datagramPacket);
-			dataSegment = datagramPacket.getData();
-			//look at the total number of packets and see if this is that last expected packet
-			if (dataSegment[1] == nextPacket && dataSegment[1] != 0) {
-				dataSegments.add(dataSegment);
-				printPacket(dataSegment);
-				//convert ArrayList of byte arrays to a single byte array
-				byte[] fileBytes=  getBytes(dataSegments);
-				//write the file
-				try (FileOutputStream fos = new FileOutputStream(filePath)) {
-					   fos.write(fileBytes);
-					   fos.close();
+			byte[] dataSegment = getDataSegment(socket, hostAddress);
+			DataPacket packet = getDataPacket(dataSegment);
+			if (packet.isValid()) {
+				sendAck(packet.getAckno(), socket, hostAddress);
+				addPacket(packet);
+				allPackets.sort(Comparator.comparingInt(DataPacket -> DataPacket.getSeqno()));
+				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
+				if (allPacketsRecieved) {
+					printPacket(dataSegment);
+					byte[] fileBytes = getBytes();
+					try (FileOutputStream fos = new FileOutputStream(filePath)) {
+						fos.write(fileBytes);
+						fos.close();
 					}
-				//end client
-				running = false;
-			}
-			else if (dataSegment[0] == nextPacket) {
-				dataSegments.add(dataSegment);
-				nextPacket++;
-				printPacket(dataSegment);
+					running = false;
+				} else {
+					printPacket(dataSegment);
+				}
 			}
 
 		}
-		datagramSocket.close();
+		socket.close();
+	}
+	
+	private static void sendAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
+		AckPacket ack = new AckPacket((short) 0, ackno);
+		DatagramPacket out = new DatagramPacket(ack.toBytes(), ack.toBytes().length, hostAddress, port);
+		socket.send(out);
 	}
 
 	/**
 	 * Gets the bytes.
 	 *
-	 * @param dataSegments the data segments
+	 * @param dataSegments
+	 *            the data segments
 	 * @return the bytes
 	 */
-	static byte[] getBytes(ArrayList<byte[]> dataSegments){
-		int fileLength = payloadSize * dataSegments.size();
+	static byte[] getBytes() {
+		int fileLength = payloadSize * allPackets.size();
 		byte[] fileBytes = new byte[fileLength];
-		int nextByte = 0;//start from the first index
-		//for each dataSegment
-		for (byte[] dataSegment : dataSegments) {
-			//Write the payload not including the overhead to the fileBytes array.
-			for (int i = overHead; i < dataSegment.length; i++) {
-				fileBytes[nextByte] = dataSegment[i];
-				++nextByte;// move to the next byte
-			}
+		int nextByte = 0;
+		for (DataPacket packet : allPackets) {
+			for (byte b : packet.getData()) {
+				fileBytes[nextByte++] = b;
+			}			
 		}
 		return fileBytes;
 	}
@@ -103,13 +99,70 @@ public class Client {
 	/**
 	 * Prints the info for each datagram received.
 	 *
-	 * @param dataSegment the data segment
-	 * @throws UnsupportedEncodingException the unsupported encoding exception
+	 * @param dataSegment
+	 *            the data segment
+	 * @throws UnsupportedEncodingException
+	 *             the unsupported encoding exception
 	 */
 	static void printPacket(byte[] dataSegment) throws UnsupportedEncodingException {
 		int packet = (int) dataSegment[0];
-		int start = (packet  - 1) * payloadSize + 1;
+		int start = (packet - 1) * payloadSize + 1;
 		int end = (packet - 1) * payloadSize + payloadSize;
 		audit.info("[packet#" + packet + "]-" + "[" + start + "]-" + "[" + end + "]\n");
 	}
+
+	static byte[] getDataSegment(DatagramSocket datagramSocket, InetAddress hostAddress) throws IOException {
+		byte[] dataSegment = new byte[packetSize];
+		DatagramPacket datagramPacket = new DatagramPacket(dataSegment, dataSegment.length);
+		//DatagramPacket out = new DatagramPacket(dataSegment, dataSegment.length, hostAddress, port);
+		//datagramSocket.send(out);
+		datagramSocket.receive(datagramPacket);
+		dataSegment = datagramPacket.getData();
+		return dataSegment;
+	}
+
+	private static DataPacket getDataPacket(byte[] dataSegment) {
+		int pointer = 0;
+		short checksum = getShort(dataSegment, pointer);
+		pointer += 2;
+		short length = getShort(dataSegment, pointer);
+		pointer += 2;
+		int ackno = getInt(dataSegment, pointer);
+		pointer += 4;
+		int seqno = getInt(dataSegment, pointer);
+		pointer += 4;
+		int totalPackets = getInt(dataSegment, pointer);
+		pointer += 4;
+		int dataSize = (dataSegment.length - OVER_HEAD);
+		byte[] data = new byte[dataSize];
+		System.arraycopy(dataSegment, pointer, data, 0, dataSegment.length);
+		DataPacket dataPacket = new DataPacket(checksum, length, ackno, seqno, totalPackets, data);
+		return dataPacket;
+	}
+
+	private static short getShort(byte[] dataSegment, int pointer) {
+		byte[] shortArray = new byte[2];
+		System.arraycopy(dataSegment, pointer, shortArray, 0, 2);
+		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
+		return wrappedNum.getShort();
+	}
+
+	private static int getInt(byte[] dataSegment, int pointer) {
+		byte[] shortArray = new byte[2];
+		System.arraycopy(dataSegment, pointer, shortArray, 0, 4);
+		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
+		return wrappedNum.getInt();
+	}
+
+	private static boolean addPacket(DataPacket packet) {
+		for (DataPacket dataPacket : allPackets) {
+			if (dataPacket.getAckno() == packet.getAckno()) {
+				audit.info("[DUPL]");
+				return false;
+			}
+		}
+		allPackets.add(packet);
+		return true;
+	}
+
 }

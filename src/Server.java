@@ -463,8 +463,10 @@ public class Server {
 									datagramSocket.setSoTimeout(timeoutInterval);
 									datagramSocket.receive(ackOnlyPacket);
 									printAckPacket(ackOnlyPacket.getData());
-									isResend = false;
-									break;
+									if(isPacketIntact(ackOnlyPacket)) {
+										isResend = false;
+										break;
+									}
 								} else {
 									// packet is dropped so do not send packet
 									printDataPacket(dataPacket.getData());

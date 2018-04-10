@@ -41,9 +41,6 @@ public class Client {
 	/** The payload size. */
 	private static int payloadSize = packetSize - OVER_HEAD;
 
-	/** The audit */
-	private static final Logger audit = Logger.getLogger("requests");
-
 	/**
 	 * The main method.
 	 *
@@ -62,36 +59,79 @@ public class Client {
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket);
 			DataPacket packet = new DataPacket(dataSegment);
-			// NOTE: this is a college project requirement why on earth would you corrupt
-			// your packet?!?!
 			corruptPacket(packet);
-			for (int i : window) {
-				System.out.println("i = " + i);
-			}
+			printIncomingPacket(packet);
 			if (packet.isValid() && inWindow(packet)) {
-				System.out.println("in window");
 				sendAck(packet.getAckno(), socket, serverAddress);
 				allPackets.add(packet);
 				// sort the packets by seqno in case they were received out of order
 				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
-				System.out.println("total Packets: " + packet.getTotalPackets());
-				System.out.println("allPackets current size: " + allPackets.size());
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
-					printPacket(dataSegment);
 					byte[] fileBytes = getBytes();
 					try (FileOutputStream fos = new FileOutputStream(filePath)) {
 						fos.write(fileBytes);
 						fos.close();
 					}
 					running = false;
-				} else {
-					// TODO add logging statements here
 				}
 			}
-			printPacket(dataSegment);
 		}
 		socket.close();
+	}
+
+	private static void printAckOut(AckPacket ack) {
+		long time = System.currentTimeMillis();
+		int ackno = ack.getAckno();
+		if (ack.getChecksum() == 1) {
+			System.out.println("Datagram " + ackno + " was created but was corrupted by the network");
+			System.out.println("SENDing ACK " + ackno + " " + time + " ERR");
+		} else if (ack.getChecksum() == 2) {
+			System.out.println("Datagram " + ackno + " was created but was dropped by the network");
+			System.out.println("SENDing ACK " + ackno + " " + time + " DROP");
+		} else {
+			System.out.println("Datagram " + ackno + " was received successfully");
+			System.out.println("SENDing ACK " + ackno + " " + time + " SENT");
+		}
+	}
+
+	private static void printIncomingPacket(DataPacket packet) {
+		long time = System.currentTimeMillis();
+		String action = "RECV";
+		String condition = "RECV";
+		String msg = "Datagram " + packet.getSeqno() + " was received successfully";
+		if (!packet.isValid()) {
+			msg = "Datagram " + packet.getSeqno() + " was received but with an error";
+			condition = "CRPT";
+		}
+		if (!isExpected(packet)) {
+			msg = "Datagram " + packet.getSeqno() + " was received out of order";
+			condition = "!Seq";
+		}
+		if (duplicate(packet)) {
+			msg = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
+			action = "DUPL";
+		}
+		System.out.println(msg);
+		System.out.println(action + " " + time + " " + packet.getSeqno() + " " + condition);
+	}
+
+	private static boolean duplicate(DataPacket packet) {
+		for (DataPacket dataPacket : allPackets) {
+			if (dataPacket.getSeqno() == packet.getSeqno()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isExpected(DataPacket packet) {
+		for (int expected : window) {
+			if (packet.getSeqno() == expected) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static void corruptPacket(DataPacket packet) {
@@ -102,7 +142,6 @@ public class Client {
 	}
 
 	private static boolean inWindow(DataPacket packet) {
-		System.out.println("packet seqno = " + packet.getSeqno());
 		for (int i = 0; i < window.length; i++) {
 			if (packet.getSeqno() == window[i]) {
 				window[i] = nextPacketSeqno++;
@@ -184,11 +223,30 @@ public class Client {
 	}
 
 	private static void sendAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
-		System.out.println("sending ack for: " + ackno);
 		AckPacket ack = new AckPacket((short) 0, ackno);
+		corruptAck(ack);
 		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress,
 				serverPort);
 		socket.send(out);
+
+	}
+
+	private static void corruptAck(AckPacket ack) {
+		Random rand = new Random();
+		if (rand.nextFloat() < datagramPercentage) {
+			if (rand.nextFloat() <= .5) {
+				ack.corrupt();
+				printAckOut(ack);
+				ack.validCheckSum();
+				return;
+			} else {
+				ack.drop();
+				printAckOut(ack);
+				ack.validCheckSum();
+				return;
+			}
+		}
+		printAckOut(ack);
 	}
 
 	private static void setServer() {
@@ -231,21 +289,6 @@ public class Client {
 			}
 		}
 		return fileBytes;
-	}
-
-	/**
-	 * Prints the info for each datagram received.
-	 *
-	 * @param dataSegment
-	 *            the data segment
-	 * @throws UnsupportedEncodingException
-	 *             the unsupported encoding exception
-	 */
-	static void printPacket(byte[] dataSegment) throws UnsupportedEncodingException {
-		int packet = (int) dataSegment[0];
-		int start = (packet - 1) * payloadSize + 1;
-		int end = (packet - 1) * payloadSize + payloadSize;
-		audit.info("[packet#" + packet + "]-" + "[" + start + "]-" + "[" + end + "]\n");
 	}
 
 	static byte[] getDataSegment(DatagramSocket socket) throws IOException {

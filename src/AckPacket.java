@@ -36,4 +36,15 @@ public class AckPacket extends Packet{
 		System.arraycopy(intArr, 0, dataSegment, pointer, 4);
 		return dataSegment;
 	}
+	
+	public void corrupt() {
+		checksum = 1;
+	}
+	
+	public void drop() {
+		checksum = 2;
+	}
+	public void validCheckSum() {
+		checksum =0;
+	}
 }

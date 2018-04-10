@@ -21,10 +21,8 @@ public class Packet {
 
 	public boolean isValid() {
 		if (checksum == 0) {
-			System.out.println("valid");
 			return true;
 		} else {
-			System.out.println("invalid");
 			return false;
 		}
 	}

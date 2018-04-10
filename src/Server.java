@@ -24,7 +24,7 @@ public class Server {
 	static HelpFormatter formatter = new HelpFormatter();
 	static CommandLine cmd = null;
 	static int fileLength = 0;
-	static ArrayList<DataPacket> dataPackets;
+	static ArrayList<DataPacket> dataPackets =  new ArrayList<DataPacket>();
 
 	/** Default Values */
 	private static final String DEFAULT_HOSTNAME = "localhost";
@@ -39,7 +39,7 @@ public class Server {
 	private static final int ACK_ONLY_PACKET_SIZE = 8;
 
 	/** Logger */
-	private static final Logger audit = Logger.getLogger("requests");
+	//private static final Logger audit = Logger.getLogger("requests");
 	private static final Logger errors = Logger.getLogger("errors");
 
 	/** Private members */
@@ -189,7 +189,7 @@ public class Server {
 		ByteBuffer buffer2 = ByteBuffer.wrap(acknoByte);
 		int ackno = buffer2.getInt();
 
-		long time = System.currentTimeMillis();
+	//	long time = System.currentTimeMillis();
 
 		if (cksumShort == 0) {
 			System.out.println("AckRcvd " + ackno + "MoveWnd");
@@ -466,9 +466,8 @@ public class Server {
 	private static void initializeWindow() {
 		window = new int[sizeOfWindow];
 		// fill window with values starting at 1 which is the first expected packet
-		for (int i = 1; i <= window.length; i++) {
-			window[i] = i;
-			nextPacketSeqno++;
+		for (int i = 0; i < window.length; i++) {
+			window[i] = nextPacketSeqno++;
 		}
 	}
 

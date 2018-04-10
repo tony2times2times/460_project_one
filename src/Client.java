@@ -4,14 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.logging.Logger;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 
 /**
  * The Class Client recieves datagrams and assembles a file from those datagrams
@@ -114,10 +107,8 @@ public class Client {
 	private static void initializeWindow() {
 		window = new int[sizeOfWindow];
 		// fill window with values starting at 1 which is the first expected packet
-		for (int i = 1; i <= window.length; i++) {
-			nextPacketSeqno++;
-			window[i] = i;
-			nextPacketSeqno++;
+		for (int i = 0; i < window.length; i++) {
+			window[i] = nextPacketSeqno++;
 		}
 	}
 

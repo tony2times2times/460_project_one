@@ -1,18 +1,10 @@
 import java.io.*;
 import java.net.*;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.logging.Logger;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 
 /**
  * The Class Client recieves datagrams and assembles a file from those datagrams
@@ -26,7 +18,7 @@ public class Client {
 	private static int sizeOfWindow;
 	private static int[] window;
 	private static final int DEFAULT_WINDOW = 1;
-	private static int nextPacketSeqno;
+	private static int nextPacketSeqno = 1;
 	private static double datagramPercentage = 0.25;
 	private static InetAddress serverAddress;
 	private static int clientPort = 0;
@@ -65,18 +57,25 @@ public class Client {
 		initializeWindow();
 		DatagramSocket socket = new DatagramSocket(clientPort);
 		// send blank packet to start connection with the server
-		DatagramPacket out = new DatagramPacket(new byte[packetSize], packetSize, serverAddress, serverPort);
-		socket.send(out);
+		DatagramPacket request = new DatagramPacket(new byte[packetSize], packetSize, serverAddress, serverPort);
+		socket.send(request);
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket);
-			DataPacket packet = getDataPacket(dataSegment);
-			//NOTE: this is a college project requirement why on earth would you corrupt your packet?!?!
+			DataPacket packet = new DataPacket(dataSegment);
+			// NOTE: this is a college project requirement why on earth would you corrupt
+			// your packet?!?!
 			corruptPacket(packet);
+			for (int i : window) {
+				System.out.println("i = " + i);
+			}
 			if (packet.isValid() && inWindow(packet)) {
+				System.out.println("in window");
 				sendAck(packet.getAckno(), socket, serverAddress);
 				allPackets.add(packet);
 				// sort the packets by seqno in case they were received out of order
-				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));				
+				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
+				System.out.println("total Packets: " + packet.getTotalPackets());
+				System.out.println("allPackets current size: " + allPackets.size());
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
 					printPacket(dataSegment);
@@ -94,7 +93,7 @@ public class Client {
 		}
 		socket.close();
 	}
-	
+
 	private static void corruptPacket(DataPacket packet) {
 		Random rand = new Random();
 		if (rand.nextFloat() <= datagramPercentage) {
@@ -103,22 +102,22 @@ public class Client {
 	}
 
 	private static boolean inWindow(DataPacket packet) {
-		for (int expected : window) {
-			if (packet.getSeqno() == expected) {
-				expected = nextPacketSeqno++;
+		System.out.println("packet seqno = " + packet.getSeqno());
+		for (int i = 0; i < window.length; i++) {
+			if (packet.getSeqno() == window[i]) {
+				window[i] = nextPacketSeqno++;
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	private static void initializeWindow() {
-		//set the next expected packet number
-		nextPacketSeqno = sizeOfWindow + 1;
 		window = new int[sizeOfWindow];
 		// fill window with values starting at 1 which is the first expected packet
-		for (int i = 1; i <= window.length; i++) {
-			window[i] = i;
+		for (int i = 0; i < window.length; i++) {
+			window[i] = nextPacketSeqno++;
 		}
 	}
 
@@ -185,8 +184,10 @@ public class Client {
 	}
 
 	private static void sendAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
+		System.out.println("sending ack for: " + ackno);
 		AckPacket ack = new AckPacket((short) 0, ackno);
-		DatagramPacket out = new DatagramPacket(ack.toBytes(), ack.toBytes().length, hostAddress, serverPort);
+		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress,
+				serverPort);
 		socket.send(out);
 	}
 
@@ -254,38 +255,4 @@ public class Client {
 		dataSegment = datagramPacket.getData();
 		return dataSegment;
 	}
-
-	private static DataPacket getDataPacket(byte[] dataSegment) {
-		int pointer = 0;
-		short checksum = getShort(dataSegment, pointer);
-		pointer += 2;
-		short length = getShort(dataSegment, pointer);
-		pointer += 2;
-		int ackno = getInt(dataSegment, pointer);
-		pointer += 4;
-		int seqno = getInt(dataSegment, pointer);
-		pointer += 4;
-		int totalPackets = getInt(dataSegment, pointer);
-		pointer += 4;
-		int dataSize = (dataSegment.length - OVER_HEAD);
-		byte[] data = new byte[dataSize];
-		System.arraycopy(dataSegment, pointer, data, 0, dataSize);
-		DataPacket dataPacket = new DataPacket(checksum, length, ackno, seqno, totalPackets, data);
-		return dataPacket;
-	}
-
-	private static short getShort(byte[] dataSegment, int pointer) {
-		byte[] shortArray = new byte[2];
-		System.arraycopy(dataSegment, pointer, shortArray, 0, 2);
-		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
-		return wrappedNum.getShort();
-	}
-
-	private static int getInt(byte[] dataSegment, int pointer) {
-		byte[] shortArray = new byte[4];
-		System.arraycopy(dataSegment, pointer, shortArray, 0, 4);
-		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
-		return wrappedNum.getInt();
-	}
-
 }

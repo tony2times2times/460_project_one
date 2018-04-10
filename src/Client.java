@@ -57,18 +57,25 @@ public class Client {
 		initializeWindow();
 		DatagramSocket socket = new DatagramSocket(clientPort);
 		// send blank packet to start connection with the server
-		DatagramPacket out = new DatagramPacket(new byte[packetSize], packetSize, serverAddress, serverPort);
-		socket.send(out);
+		DatagramPacket request = new DatagramPacket(new byte[packetSize], packetSize, serverAddress, serverPort);
+		socket.send(request);
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket);
 			DataPacket packet = new DataPacket(dataSegment);
-			//NOTE: this is a college project requirement why on earth would you corrupt your packet?!?!
+			// NOTE: this is a college project requirement why on earth would you corrupt
+			// your packet?!?!
 			corruptPacket(packet);
+			for (int i : window) {
+				System.out.println("i = " + i);
+			}
 			if (packet.isValid() && inWindow(packet)) {
+				System.out.println("in window");
 				sendAck(packet.getAckno(), socket, serverAddress);
 				allPackets.add(packet);
 				// sort the packets by seqno in case they were received out of order
-				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));				
+				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
+				System.out.println("total Packets: " + packet.getTotalPackets());
+				System.out.println("allPackets current size: " + allPackets.size());
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
 					printPacket(dataSegment);
@@ -86,7 +93,7 @@ public class Client {
 		}
 		socket.close();
 	}
-	
+
 	private static void corruptPacket(DataPacket packet) {
 		Random rand = new Random();
 		if (rand.nextFloat() <= datagramPercentage) {
@@ -95,12 +102,14 @@ public class Client {
 	}
 
 	private static boolean inWindow(DataPacket packet) {
-		for (int expected : window) {
-			if (packet.getSeqno() == expected) {
-				expected = nextPacketSeqno++;
+		System.out.println("packet seqno = " + packet.getSeqno());
+		for (int i = 0; i < window.length; i++) {
+			if (packet.getSeqno() == window[i]) {
+				window[i] = nextPacketSeqno++;
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -175,8 +184,10 @@ public class Client {
 	}
 
 	private static void sendAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
+		System.out.println("sending ack for: " + ackno);
 		AckPacket ack = new AckPacket((short) 0, ackno);
-		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress, serverPort);
+		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress,
+				serverPort);
 		socket.send(out);
 	}
 

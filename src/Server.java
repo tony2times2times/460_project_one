@@ -48,7 +48,7 @@ public class Server {
 	private static int timeoutInterval;
 	private static int sizeOfWindow;
 	private static int[] window;
-	private static int nextPacketSeqno = 1;
+	private static int nextPacketIndex = 0;
 	private static double datagramPercentage;
 	private static int clientPort;
 	private static InetAddress clientAddress;
@@ -118,6 +118,8 @@ public class Server {
 		int totalPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize)
 				: ((fileLength / payloadSize) + 1);
 		int size = payloadSize;
+		
+		System.out.println("TOTAL PACKETS: " + totalPackets);
 		for (int i = 0; i < totalPackets; i++) {			
 			boolean endOfData = i == (totalPackets - 1);
 			if (endOfData) {
@@ -400,11 +402,10 @@ public class Server {
 			while (!socket.isClosed()) {
 				if (windowOpen()) {
 					sendNextPacket(socket);
-					updateWindow();
 				} else {
 					waitForAck(socket);
 				}
-				boolean allPacketsSent = nextPacketSeqno > dataPackets.size();
+				boolean allPacketsSent = nextPacketIndex == dataPackets.size();
 				if (allPacketsSent) {
 					// close the server socket
 					socket.close();
@@ -415,34 +416,50 @@ public class Server {
 		}
 	}
 
-	private static void updateWindow() {
-
-	}
+	
 
 	private static boolean windowOpen() {
-		for (int seqno : window) {
-			if (seqno == 0) {
+		System.out.println("window:");
+		
+		for (int i = 0; i < window.length; i++) {
+			if (window[i] == 0) {
+				System.out.println(window[i]);
+				window[i] = nextPacketIndex;
 				return true;
 			}
+			System.out.println("**********");
 		}
 		return false;
 	}
 
 	private static void waitForAck(DatagramSocket socket) throws IOException {
+		System.out.println("waiting for ACK");
 		byte[] clientSegment = new byte[ACK_ONLY_PACKET_SIZE];
 		DatagramPacket clientPacket = new DatagramPacket(clientSegment, clientSegment.length);
-		socket.receive(clientPacket);
+		try {
+			socket.receive(clientPacket);
+		} catch (SocketTimeoutException e) {
+			resendWindowPackets(socket);
+			waitForAck(socket);
+		}
 		AckPacket ack = new AckPacket(clientSegment);
 		for (int seqno : window) {
 			if (seqno == ack.getAckno()) {
-				seqno = nextPacketSeqno;
+				seqno = nextPacketIndex;
 			}
 		}
 		printAckPacket(clientPacket.getData());
 	}
+	
+	private static void resendWindowPackets(DatagramSocket socket) {
+		for (DataPacket dataPacket : dataPackets) {
+			//TODO resend all packets in window
+		}
+	}
 
 	private static void sendNextPacket(DatagramSocket socket) throws IOException {
-		byte[] nextPacket = dataPackets.get(nextPacketSeqno++).toDataSegment();
+		System.out.println("sending: " + dataPackets.get(nextPacketIndex).getSeqno());
+		byte[] nextPacket = dataPackets.get(nextPacketIndex++).toDataSegment();
 		DatagramPacket dataPacket = new DatagramPacket(nextPacket, nextPacket.length, clientAddress, clientPort);
 		// interrupt the packet - requirement for class project simulating
 		// dropped/corrupt packets.
@@ -459,16 +476,12 @@ public class Server {
 				printDataPacket(dataPacket.getData());
 			}
 		} catch (SocketTimeoutException e) {
-			printTimeout(nextPacketSeqno);
+			printTimeout(nextPacketIndex);
 		}
 	}
 
 	private static void initializeWindow() {
 		window = new int[sizeOfWindow];
-		// fill window with values starting at 1 which is the first expected packet
-		for (int i = 0; i < window.length; i++) {
-			window[i] = nextPacketSeqno++;
-		}
 	}
 
 	private static void waitForRequest(DatagramSocket socket) throws IOException {
@@ -476,7 +489,6 @@ public class Server {
 		byte[] clientSegment = new byte[ACK_ONLY_PACKET_SIZE];
 		DatagramPacket clientPacket = new DatagramPacket(clientSegment, clientSegment.length);
 		socket.receive(clientPacket);
-
 		// update the receiver port and address
 		clientAddress = clientPacket.getAddress();
 		clientPort = clientPacket.getPort();

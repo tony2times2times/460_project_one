@@ -432,7 +432,12 @@ public class Server {
 		byte[] clientSegment = new byte[ACK_ONLY_PACKET_SIZE];
 		DatagramPacket clientPacket = new DatagramPacket(clientSegment, clientSegment.length);
 		socket.receive(clientPacket);
-
+		AckPacket ack = new AckPacket(clientSegment);
+		for (int seqno : window) {
+			if (seqno == ack.getAckno()) {
+				seqno = nextPacketSeqno;
+			}
+		}
 		printAckPacket(clientPacket.getData());
 	}
 

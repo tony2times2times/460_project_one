@@ -24,7 +24,7 @@ public class Server {
 	static HelpFormatter formatter = new HelpFormatter();
 	static CommandLine cmd = null;
 	static int fileLength = 0;
-	static ArrayList<byte[]> dataSegments;
+	static ArrayList<DataPacket> dataPackets;
 
 	/** Default Values */
 	private static final String DEFAULT_HOSTNAME = "localhost";
@@ -47,6 +47,8 @@ public class Server {
 	private static int payloadSize;
 	private static int timeoutInterval;
 	private static int sizeOfWindow;
+	private static int[] window;
+	private static int nextPacketSeqno = 1;
 	private static double datagramPercentage;
 	private static int clientPort;
 	private static InetAddress clientAddress;
@@ -72,7 +74,6 @@ public class Server {
 	private static final String OPTION_FILE = "file";
 	private static final String OPTION_FILE_DESCRIPTION = "file path";
 	private static final int TWO_BYTE = 2;
-	private static final int FOUR_BYTE = 4;
 
 	/**
 	 * Server Main
@@ -80,7 +81,7 @@ public class Server {
 	public static void main(String args[]) {
 		readArgs(args);
 		byte[] data = readFile();
-		dataSegments = getDataSegments(data, fileLength);
+		setDataPackets(data, fileLength);
 		sendPackets();
 	}
 
@@ -103,68 +104,32 @@ public class Server {
 	 *            array that holds all data
 	 * @return data segments ArrayList
 	 */
-	private static ArrayList<byte[]> getDataSegments(byte[] data, int fileLength) {
-
-		// array list to hold arrays of binary data segments
-		ArrayList<byte[]> dataSegments = new ArrayList<byte[]>();
-
+	private static void setDataPackets(byte[] data, int fileLength) {
+		// pointer to transfer data onto arrays of binary data segments
+		int pointer = 0;
+		// checksum of IP packet: good by default
+		short checksum = 0;
+		// acknowledge number of packet
+		int ackno = 1;
+		// sequence number of packet
+		int seqno = 1;
 		// if the file is not perfectly divisible by payload add a packet to hold
 		// the rest
-		int numPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize)
+		int totalPackets = (fileLength % payloadSize == 0) ? (fileLength / payloadSize)
 				: ((fileLength / payloadSize) + 1);
-
-		// pointer to transfer data onto arrays of binary data segments
-		int payloadPointer = 0;
-		// checksum of IP packet: good by default
-		short cksumSht = 0;
-		// acknowledge number of packet
-		int acknoInt = 1;
-		// sequence number of packet
-		int seqnoInt = 1;
-
-		/**
-		 * Fill each packet
-		 */
-		for (int i = 0; i < numPackets; i++) {
-			// pointer to transfer overhead
-			int overheadPointer = 0;
-
-			byte[] dataSegment = new byte[sizeOfPacket];
-
-			/**
-			 * Overhead
-			 */
-			// cksum
-			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
-			System.arraycopy(cksum, 0, dataSegment, overheadPointer, TWO_BYTE);
-			overheadPointer += TWO_BYTE;
-			// len
-			byte[] len = ByteBuffer.allocate(2).putShort(sizeOfPacket).array();
-			System.arraycopy(len, 0, dataSegment, overheadPointer, TWO_BYTE);
-			overheadPointer += TWO_BYTE;
-			// ackno
-			byte[] ackno = ByteBuffer.allocate(4).putInt(acknoInt++).array();
-			System.arraycopy(ackno, 0, dataSegment, overheadPointer, FOUR_BYTE);
-			overheadPointer += FOUR_BYTE;
-			// seqno
-			byte[] seqno = ByteBuffer.allocate(4).putInt(seqnoInt++).array();
-			System.arraycopy(seqno, 0, dataSegment, overheadPointer, FOUR_BYTE);
-			overheadPointer += FOUR_BYTE;
-			// numPackets
-			byte[] numPacketsArr = ByteBuffer.allocate(4).putInt(numPackets).array();
-			System.arraycopy(numPacketsArr, 0, dataSegment, overheadPointer, FOUR_BYTE);
-			overheadPointer += FOUR_BYTE;
-			/**
-			 * Payload
-			 */
-			for (int j = OVERHEAD; j < sizeOfPacket; j++) {
-				if (payloadPointer < fileLength) {
-					dataSegment[j] = data[payloadPointer++];
-				}
+		int size = payloadSize;
+		for (int i = 0; i < totalPackets; i++) {			
+			boolean endOfData = i == (totalPackets - 1);
+			if (endOfData) {
+				size = data.length - pointer;
 			}
-			dataSegments.add(dataSegment);
+			// Data portion of packet
+			byte[] dataSegment = new byte[sizeOfPacket];
+			System.arraycopy(data, pointer, dataSegment, 0, size);
+			pointer += size;
+			DataPacket dataPacket = new DataPacket(checksum, ackno, seqno++, totalPackets, dataSegment);
+			dataPackets.add(dataPacket);
 		}
-		return dataSegments;
 	}
 
 	/**
@@ -182,55 +147,56 @@ public class Server {
 		// buffer to turn byte to short
 		ByteBuffer buffer = ByteBuffer.wrap(cksum);
 		short cksumShort = buffer.getShort();
-		
+
 		// get the seqno in overhead
 		byte[] seqnoByte = new byte[4];
 		System.arraycopy(dataSegment, 8, seqnoByte, 0, 4);
 		// buffer to turn byte to short
 		ByteBuffer buffer2 = ByteBuffer.wrap(seqnoByte);
 		int seqno = buffer2.getInt();
-				
+
 		int start = (seqno - 1) * payloadSize + 1;
 		int end = (seqno - 1) * payloadSize + payloadSize;
-		
+
 		long time = System.currentTimeMillis();
-		
-		if(cksumShort == 0) {
+
+		if (cksumShort == 0) {
 			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " SENT");
 			return;
-		} else if(cksumShort == 1) {
+		} else if (cksumShort == 1) {
 			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " ERR");
 		} else {
 			System.out.println("SENDing " + seqno + " " + start + ":" + end + " " + time + " DROP");
 		}
 	}
-	
+
 	private static void printAckPacket(byte[] dataSegment) {
 
-		if(dataSegment == null) return;
-		
+		if (dataSegment == null)
+			return;
+
 		// get the cksum in overhead
 		byte[] cksum = new byte[2];
 		System.arraycopy(dataSegment, 0, cksum, 0, 2);
 		// buffer to turn byte to short
 		ByteBuffer buffer = ByteBuffer.wrap(cksum);
 		short cksumShort = buffer.getShort();
-		
+
 		// get the ackno in overhead
 		byte[] acknoByte = new byte[4];
 		System.arraycopy(dataSegment, 4, acknoByte, 0, 4);
 		// buffer to turn byte to short
 		ByteBuffer buffer2 = ByteBuffer.wrap(acknoByte);
 		int ackno = buffer2.getInt();
-		
+
 		long time = System.currentTimeMillis();
-		
-		if(cksumShort == 0) {
+
+		if (cksumShort == 0) {
 			System.out.println("AckRcvd " + ackno + "MoveWnd");
 			return;
-		} else if(cksumShort == 1) {
+		} else if (cksumShort == 1) {
 			System.out.println("AckRcvd " + ackno + "ErrAck.");
-		} 
+		}
 	}
 
 	/**
@@ -428,62 +394,90 @@ public class Server {
 	 * the requester Close the server socket
 	 */
 	private static void sendPackets() {
-		try (DatagramSocket datagramSocket = new DatagramSocket(SERVER_PORT)) {
-			while (!datagramSocket.isClosed()) {
-				try {
-					// receive request from the client
-					byte[] requestSegment = new byte[ACK_ONLY_PACKET_SIZE];
-					DatagramPacket requestPacket = new DatagramPacket(requestSegment, requestSegment.length);
-					datagramSocket.receive(requestPacket);
-
-					// update the receiver port and address
-					clientAddress = requestPacket.getAddress();
-					clientPort = requestPacket.getPort();
-
-					// prepare ack-only packet from client
-					byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
-					DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
-
-					// Send each data packet
-					for (int i = 0; i < dataSegments.size(); i++) {
-						// repeat until positive acknowledgement is received
-						while (true) {
-							// create a data packet
-							DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
-									dataSegments.get(i).length, clientAddress, clientPort);
-							// interrupt the packet
-							dataPacket = interruptPacket(dataPacket);
-							// timeout will be caught
-							try {
-								if (isPacketIntact(dataPacket)) {
-									// packet may be corrupted but is not dropped so send
-									datagramSocket.send(dataPacket);
-									printDataPacket(dataPacket.getData());
-									datagramSocket.setSoTimeout(timeoutInterval);
-									datagramSocket.receive(ackOnlyPacket);
-									printAckPacket(ackOnlyPacket.getData());
-									//if(isPacketIntact(ackOnlyPacket)) break;
-									break;
-								} else {
-									// packet is dropped so do not send packet
-									printDataPacket(dataPacket.getData());
-								}
-							} catch (SocketTimeoutException e) {
-								printTimeout(i);
-							}
-						}
-					}
+		initializeWindow();
+		try (DatagramSocket socket = new DatagramSocket(SERVER_PORT)) {
+			waitForRequest(socket);
+			while (!socket.isClosed()) {
+				if (windowOpen()) {
+					sendNextPacket(socket);
+					updateWindow();
+				} else {
+					waitForAck(socket);
+				}
+				boolean allPacketsSent = nextPacketSeqno > dataPackets.size();
+				if (allPacketsSent) {
 					// close the server socket
-					datagramSocket.close();
-				} catch (IOException | RuntimeException ex) {
-					errors.log(Level.SEVERE, ex.getMessage(), ex);
+					socket.close();
 				}
 			}
-		} catch (IOException ex) {
+		} catch (IOException | RuntimeException ex) {
 			errors.log(Level.SEVERE, ex.getMessage(), ex);
 		}
 	}
-	
+
+	private static void updateWindow() {
+
+	}
+
+	private static boolean windowOpen() {
+		for (int seqno : window) {
+			if (seqno == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static void waitForAck(DatagramSocket socket) throws IOException {
+		byte[] clientSegment = new byte[ACK_ONLY_PACKET_SIZE];
+		DatagramPacket clientPacket = new DatagramPacket(clientSegment, clientSegment.length);
+		socket.receive(clientPacket);
+
+		printAckPacket(clientPacket.getData());
+	}
+
+	private static void sendNextPacket(DatagramSocket socket) throws IOException {
+		byte[] nextPacket = dataPackets.get(nextPacketSeqno++).toDataSegment();
+		DatagramPacket dataPacket = new DatagramPacket(nextPacket, nextPacket.length, clientAddress, clientPort);
+		// interrupt the packet - requirement for class project simulating
+		// dropped/corrupt packets.
+		dataPacket = interruptPacket(dataPacket);
+		// timeout will be caught
+		try {
+			if (isPacketIntact(dataPacket)) {
+				// packet may be corrupted but is not dropped so send
+				socket.send(dataPacket);
+				printDataPacket(dataPacket.getData());
+				socket.setSoTimeout(timeoutInterval);
+			} else {
+				// packet is dropped so do not send packet
+				printDataPacket(dataPacket.getData());
+			}
+		} catch (SocketTimeoutException e) {
+			printTimeout(nextPacketSeqno);
+		}
+	}
+
+	private static void initializeWindow() {
+		window = new int[sizeOfWindow];
+		// fill window with values starting at 1 which is the first expected packet
+		for (int i = 1; i <= window.length; i++) {
+			window[i] = i;
+			nextPacketSeqno++;
+		}
+	}
+
+	private static void waitForRequest(DatagramSocket socket) throws IOException {
+		// receive request from the client
+		byte[] clientSegment = new byte[ACK_ONLY_PACKET_SIZE];
+		DatagramPacket clientPacket = new DatagramPacket(clientSegment, clientSegment.length);
+		socket.receive(clientPacket);
+
+		// update the receiver port and address
+		clientAddress = clientPacket.getAddress();
+		clientPort = clientPacket.getPort();
+	}
+
 	private static boolean isPacketIntact(DatagramPacket dataPacket) {
 		// get the data
 		byte[] dataSegment = dataPacket.getData();
@@ -493,11 +487,11 @@ public class Server {
 		// buffer to turn byte to short
 		ByteBuffer buffer = ByteBuffer.wrap(cksum);
 		short cksumShort = buffer.getShort();
-		
+
 		// check Short
-		if(cksumShort == 0) {
+		if (cksumShort == 0) {
 			return true;
-		} 
+		}
 		return false;
 	}
 }

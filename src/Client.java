@@ -1,6 +1,5 @@
 import java.io.*;
 import java.net.*;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Random;
@@ -26,7 +25,7 @@ public class Client {
 	private static int sizeOfWindow;
 	private static int[] window;
 	private static final int DEFAULT_WINDOW = 1;
-	private static int nextPacketSeqno;
+	private static int nextPacketSeqno = 1;
 	private static double datagramPercentage = 0.25;
 	private static InetAddress serverAddress;
 	private static int clientPort = 0;
@@ -69,7 +68,7 @@ public class Client {
 		socket.send(out);
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket);
-			DataPacket packet = getDataPacket(dataSegment);
+			DataPacket packet = new DataPacket(dataSegment);
 			//NOTE: this is a college project requirement why on earth would you corrupt your packet?!?!
 			corruptPacket(packet);
 			if (packet.isValid() && inWindow(packet)) {
@@ -113,12 +112,12 @@ public class Client {
 	}
 
 	private static void initializeWindow() {
-		//set the next expected packet number
-		nextPacketSeqno = sizeOfWindow + 1;
 		window = new int[sizeOfWindow];
 		// fill window with values starting at 1 which is the first expected packet
 		for (int i = 1; i <= window.length; i++) {
+			nextPacketSeqno++;
 			window[i] = i;
+			nextPacketSeqno++;
 		}
 	}
 
@@ -186,7 +185,7 @@ public class Client {
 
 	private static void sendAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
 		AckPacket ack = new AckPacket((short) 0, ackno);
-		DatagramPacket out = new DatagramPacket(ack.toBytes(), ack.toBytes().length, hostAddress, serverPort);
+		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress, serverPort);
 		socket.send(out);
 	}
 
@@ -254,38 +253,4 @@ public class Client {
 		dataSegment = datagramPacket.getData();
 		return dataSegment;
 	}
-
-	private static DataPacket getDataPacket(byte[] dataSegment) {
-		int pointer = 0;
-		short checksum = getShort(dataSegment, pointer);
-		pointer += 2;
-		short length = getShort(dataSegment, pointer);
-		pointer += 2;
-		int ackno = getInt(dataSegment, pointer);
-		pointer += 4;
-		int seqno = getInt(dataSegment, pointer);
-		pointer += 4;
-		int totalPackets = getInt(dataSegment, pointer);
-		pointer += 4;
-		int dataSize = (dataSegment.length - OVER_HEAD);
-		byte[] data = new byte[dataSize];
-		System.arraycopy(dataSegment, pointer, data, 0, dataSize);
-		DataPacket dataPacket = new DataPacket(checksum, length, ackno, seqno, totalPackets, data);
-		return dataPacket;
-	}
-
-	private static short getShort(byte[] dataSegment, int pointer) {
-		byte[] shortArray = new byte[2];
-		System.arraycopy(dataSegment, pointer, shortArray, 0, 2);
-		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
-		return wrappedNum.getShort();
-	}
-
-	private static int getInt(byte[] dataSegment, int pointer) {
-		byte[] shortArray = new byte[4];
-		System.arraycopy(dataSegment, pointer, shortArray, 0, 4);
-		ByteBuffer wrappedNum = ByteBuffer.wrap(shortArray);
-		return wrappedNum.getInt();
-	}
-
 }

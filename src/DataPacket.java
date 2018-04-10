@@ -48,4 +48,8 @@ public class DataPacket {
 	public int getTotalPackets() {
 		return totalPackets;
 	}
+	
+	public void corrupt() {
+		checksum = 1;
+	}
 }

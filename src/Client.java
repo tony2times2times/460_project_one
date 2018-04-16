@@ -59,7 +59,7 @@ public class Client {
 		while (running) {
 			byte[] dataSegment = getDataSegment(socket);
 			DataPacket packet = new DataPacket(dataSegment);
-			corruptPacket(packet);
+			//corruptPacket(packet);
 			printIncomingPacket(packet);
 			if (packet.isValid() && inWindow(packet)) {
 				sendAck(packet.getAckno(), socket, serverAddress);
@@ -84,13 +84,13 @@ public class Client {
 		long time = System.currentTimeMillis();
 		int ackno = ack.getAckno();
 		if (ack.getChecksum() == 1) {
-			System.out.println("Datagram " + ackno + " was created but was corrupted by the network");
+			//System.out.println("Datagram " + ackno + " was created but was corrupted by the network");
 			System.out.println("SENDing ACK " + ackno + " " + time + " ERR");
 		} else if (ack.getChecksum() == 2) {
-			System.out.println("Datagram " + ackno + " was created but was dropped by the network");
+			//System.out.println("Datagram " + ackno + " was created but was dropped by the network");
 			System.out.println("SENDing ACK " + ackno + " " + time + " DROP");
 		} else {
-			System.out.println("Datagram " + ackno + " was received successfully");
+			//System.out.println("Datagram " + ackno + " was received successfully");
 			System.out.println("SENDing ACK " + ackno + " " + time + " SENT");
 		}
 	}
@@ -112,7 +112,7 @@ public class Client {
 			msg = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
 			action = "DUPL";
 		}
-		System.out.println(msg);
+		//System.out.println(msg);
 		System.out.println(action + " " + time + " " + packet.getSeqno() + " " + condition);
 	}
 
@@ -237,12 +237,12 @@ public class Client {
 			if (rand.nextFloat() <= .5) {
 				ack.corrupt();
 				printAckOut(ack);
-				ack.validCheckSum();
+				//ack.validCheckSum();
 				return;
 			} else {
 				ack.drop();
 				printAckOut(ack);
-				ack.validCheckSum();
+				//ack.validCheckSum();
 				return;
 			}
 		}

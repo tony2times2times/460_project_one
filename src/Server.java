@@ -168,112 +168,12 @@ public class Server {
 		return dataSegments;
 	}
 
-	/**
-	 * needs to be updated! Prints packet number, start off-set and end off-set of a
-	 * packet
-	 * 
-	 * @param packet
-	 *            that holds data segment
-	 */
-	private static void printDataPacket(byte[] dataSegment) {
-
-		// get the cksum in overhead
-		byte[] cksum = new byte[2];
-		System.arraycopy(dataSegment, 0, cksum, 0, 2);
-		// buffer to turn byte to short
-		ByteBuffer buffer = ByteBuffer.wrap(cksum);
-		short cksumShort = buffer.getShort();
-		
-		// get the seqno in overhead
-		byte[] seqnoByte = new byte[4];
-		System.arraycopy(dataSegment, 8, seqnoByte, 0, 4);
-		// buffer to turn byte to short
-		ByteBuffer buffer2 = ByteBuffer.wrap(seqnoByte);
-		int seqno = buffer2.getInt();
-				
-		int start = (seqno - 1) * payloadSize + 1;
-		int end = (seqno - 1) * payloadSize + payloadSize;
-		
-		long time = System.currentTimeMillis();
-		String status = isResend ? "ReSend " : "SENDing ";
-		if(cksumShort == 0) {
-			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " SENT");
-			return;
-		} else if(cksumShort == 1) {
-			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " ERR");
-		} else {
-			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " DROP");
-		}
-	}
-	
-	private static void printAckPacket(byte[] dataSegment) {
-
-		if(dataSegment == null) return;
-		
-		// get the cksum in overhead
-		byte[] cksum = new byte[2];
-		System.arraycopy(dataSegment, 0, cksum, 0, 2);
-		// buffer to turn byte to short
-		ByteBuffer buffer = ByteBuffer.wrap(cksum);
-		short cksumShort = buffer.getShort();
-		
-		// get the ackno in overhead
-		byte[] acknoByte = new byte[4];
-		System.arraycopy(dataSegment, 4, acknoByte, 0, 4);
-		// buffer to turn byte to short
-		ByteBuffer buffer2 = ByteBuffer.wrap(acknoByte);
-		int ackno = buffer2.getInt();
-		
-		long time = System.currentTimeMillis();
-		
-		if(cksumShort == 0) {
-			System.out.println("AckRcvd " + ackno + " MoveWnd");
-			return;
-		} else if(cksumShort == 1) {
-			System.out.println("AckRcvd " + ackno + " ErrAck.");
-		} 
-	}
 
 	/**
 	 * Prints timeout information on the console
 	 */
 	private static void printTimeout(int i) {
 		System.out.println("Timeout " + i);
-	}
-
-	/**
-	 * Simulates a lossy network by randomly corrupting or dropping the given packet
-	 * The chance is determined by the datagram percentage variable
-	 * 
-	 * @param dataPacket
-	 * @return interruptedPacket
-	 */
-	private static DatagramPacket interruptPacket(DatagramPacket dataPacket) {
-		byte[] interruptedSegment = new byte[dataPacket.getData().length];
-		DatagramPacket interruptedPacket = null;
-		double chance = Math.random();
-		boolean isDropped = chance < datagramPercentage / 2;
-		boolean isCorrupted = (chance < datagramPercentage) && (!isDropped);
-
-		if (isDropped) {
-			// dropped packet
-			short cksumSht = 2;
-			interruptedSegment = dataPacket.getData().clone();
-			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
-			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
-			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
-		} else if (isCorrupted) {
-			// corrupted packet has bad checksum
-			short cksumSht = 1;
-			interruptedSegment = dataPacket.getData().clone();
-			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
-			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
-			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
-		} else {
-			// packet is intact
-			interruptedPacket = dataPacket;
-		}
-		return interruptedPacket;
 	}
 
 	private static void defineCommandLineOptions() {
@@ -441,24 +341,24 @@ public class Server {
 					clientAddress = requestPacket.getAddress();
 					clientPort = requestPacket.getPort();
 
-					// prepare ack-only packet from client
-					byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
-					DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
-
 					// Send each data packet
 					for (int i = 0; i < dataSegments.size(); i++) {
 						// repeat until positive acknowledgement is received
-						while (true) {
-							// create a data packet
-							DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
-									dataSegments.get(i).length, clientAddress, clientPort);
-							// interrupt the packet
-							dataPacket = interruptPacket(dataPacket);
-							// timeout will be caught
-							try {
-								if (isPacketIntact(dataPacket)) {
+						try {
+							while (true) {
+								try {
+									// create a data packet
+									DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
+												dataSegments.get(i).length, clientAddress, clientPort);
+									// interrupt the packet
+									dataPacket = interruptPacket(dataPacket);
+									
+									// prepare ack-only packet from client
+									byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
+									DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
+								
 									// packet may be corrupted but is not dropped so send
-									datagramSocket.send(dataPacket);
+									if(!isPacketDropped(dataPacket.getData())) datagramSocket.send(dataPacket);
 									printDataPacket(dataPacket.getData());
 									datagramSocket.setSoTimeout(timeoutInterval);
 									datagramSocket.receive(ackOnlyPacket);
@@ -467,14 +367,18 @@ public class Server {
 										isResend = false;
 										break;
 									}
-								} else {
-									// packet is dropped so do not send packet
-									printDataPacket(dataPacket.getData());
+								} catch(SocketTimeoutException e) {
+									printTimeout(i + 1);
+									isResend = true;
 								}
-							} catch (SocketTimeoutException e) {
-								printTimeout(i + 1);
-								isResend = true;
-							}
+							} 
+						} catch(SocketTimeoutException e) {
+							printTimeout(i + 1);
+							isResend = true;
+							i--;
+						} catch(NullPointerException e) {
+							isResend = true;
+							i--;
 						}
 					}
 					// close the server socket
@@ -486,6 +390,41 @@ public class Server {
 		} catch (IOException ex) {
 			errors.log(Level.SEVERE, ex.getMessage(), ex);
 		}
+	}
+	
+	/**
+	 * Simulates a lossy network by randomly corrupting or dropping the given packet
+	 * The chance is determined by the datagram percentage variable
+	 * 
+	 * @param dataPacket
+	 * @return interruptedPacket
+	 */
+	private static DatagramPacket interruptPacket(DatagramPacket dataPacket) {
+		byte[] interruptedSegment = new byte[dataPacket.getData().length];
+		DatagramPacket interruptedPacket = null;
+		double chance = Math.random();
+		boolean isDropped = chance < datagramPercentage / 2;
+		boolean isCorrupted = (chance < datagramPercentage) && (!isDropped);
+
+		if (isDropped) {
+			// dropped packet
+			short cksumSht = 1;
+			interruptedSegment = dataPacket.getData().clone();
+			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
+			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
+		} else if (isCorrupted) {
+			// corrupted packet has bad checksum
+			short cksumSht = 1;
+			interruptedSegment = dataPacket.getData().clone();
+			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
+			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
+		} else {
+			// packet is intact
+			interruptedPacket = dataPacket;
+		}
+		return interruptedPacket;
 	}
 	
 	private static boolean isPacketIntact(DatagramPacket dataPacket) {
@@ -504,6 +443,86 @@ public class Server {
 		if(cksumShort == 0) {
 			return true;
 		} 
+		return false;
+	}
+	
+	/**
+	 * needs to be updated! Prints packet number, start off-set and end off-set of a
+	 * packet
+	 * 
+	 * @param packet
+	 *            that holds data segment
+	 */
+	private static void printDataPacket(byte[] dataSegment) {
+
+		// get the cksum in overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		// get the seqno in overhead
+		byte[] seqnoByte = new byte[4];
+		System.arraycopy(dataSegment, 8, seqnoByte, 0, 4);
+		// buffer to turn byte to short
+		ByteBuffer buffer2 = ByteBuffer.wrap(seqnoByte);
+		int seqno = buffer2.getInt();
+				
+		int start = (seqno - 1) * payloadSize + 1;
+		int end = (seqno - 1) * payloadSize + payloadSize;
+		
+		long time = System.currentTimeMillis();
+		String status = isResend ? "ReSend " : "SENDing ";
+		if(cksumShort == 0) {
+			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " SENT");
+			return;
+		} else if(cksumShort == 1) {
+			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " ERR");
+		} else {
+			System.out.println(status + seqno + " " + start + ":" + end + " " + time + " DROP");
+		}
+	}
+	
+	private static void printAckPacket(byte[] dataSegment) {
+
+		if(dataSegment == null) return;
+		
+		// get the cksum in overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		// get the ackno in overhead
+		byte[] acknoByte = new byte[4];
+		System.arraycopy(dataSegment, 4, acknoByte, 0, 4);
+		// buffer to turn byte to short
+		ByteBuffer buffer2 = ByteBuffer.wrap(acknoByte);
+		int ackno = buffer2.getInt();
+		
+		long time = System.currentTimeMillis();
+		
+		if(cksumShort == 0) {
+			System.out.println("AckRcvd " + ackno + " MoveWnd");
+			return;
+		} else if(cksumShort == 1) {
+			System.out.println("AckRcvd " + ackno + " ErrAck.");
+		} 
+	}
+	
+	private static boolean isPacketDropped(byte[] dataSegment) {
+		// get the cksum in overhead
+		byte[] cksum = new byte[2];
+		System.arraycopy(dataSegment, 0, cksum, 0, 2);
+		// buffer to turn byte to short
+		ByteBuffer buffer = ByteBuffer.wrap(cksum);
+		short cksumShort = buffer.getShort();
+		
+		if(cksumShort == 2) {
+			return true;
+		}
 		return false;
 	}
 }

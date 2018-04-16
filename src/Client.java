@@ -3,7 +3,6 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Random;
-import java.util.logging.Logger;
 import org.apache.commons.cli.*;
 
 /**
@@ -61,13 +60,15 @@ public class Client {
 			DataPacket packet = new DataPacket(dataSegment);
 			//corruptPacket(packet);
 			printIncomingPacket(packet);
-			if (packet.isValid() && inWindow(packet)) {
+			if (packet.isValid()) {
 				sendAck(packet.getAckno(), socket, serverAddress);
+			}
+			if (packet.isValid() && inWindow(packet)) {
 				allPackets.add(packet);
-				// sort the packets by seqno in case they were received out of order
-				allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
+					// sort the packets by seqno in case they were received out of order
+					allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
 					byte[] fileBytes = getBytes();
 					try (FileOutputStream fos = new FileOutputStream(filePath)) {
 						fos.write(fileBytes);
@@ -99,20 +100,20 @@ public class Client {
 		long time = System.currentTimeMillis();
 		String action = "RECV";
 		String condition = "RECV";
-		String msg = "Datagram " + packet.getSeqno() + " was received successfully";
+		String message = "Datagram " + packet.getSeqno() + " was received successfully";
 		if (!packet.isValid()) {
-			msg = "Datagram " + packet.getSeqno() + " was received but with an error";
+			message = "Datagram " + packet.getSeqno() + " was received but with an error";
 			condition = "CRPT";
 		}
 		if (!isExpected(packet)) {
-			msg = "Datagram " + packet.getSeqno() + " was received out of order";
+			message = "Datagram " + packet.getSeqno() + " was received out of order";
 			condition = "!Seq";
 		}
 		if (duplicate(packet)) {
-			msg = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
+			message = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
 			action = "DUPL";
 		}
-		//System.out.println(msg);
+		System.out.println(message);
 		System.out.println(action + " " + time + " " + packet.getSeqno() + " " + condition);
 	}
 

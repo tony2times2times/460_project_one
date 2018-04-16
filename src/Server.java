@@ -350,7 +350,8 @@ public class Server {
 									// create a data packet
 									DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
 												dataSegments.get(i).length, clientAddress, clientPort);
-									// interrupt the packet
+									
+									// interrupt the data packet
 									dataPacket = interruptPacket(dataPacket);
 									
 									// prepare ack-only packet from client
@@ -377,6 +378,7 @@ public class Server {
 							isResend = true;
 							i--;
 						} catch(NullPointerException e) {
+							System.out.println("null");
 							isResend = true;
 							i--;
 						}
@@ -408,18 +410,18 @@ public class Server {
 
 		if (isDropped) {
 			// dropped packet
-			short cksumSht = 1;
+			short cksumSht = 2;
 			interruptedSegment = dataPacket.getData().clone();
 			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
 			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
-			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length, clientAddress, clientPort);
 		} else if (isCorrupted) {
 			// corrupted packet has bad checksum
 			short cksumSht = 1;
 			interruptedSegment = dataPacket.getData().clone();
 			byte[] cksum = ByteBuffer.allocate(2).putShort(cksumSht).array();
 			System.arraycopy(cksum, 0, interruptedSegment, 0, TWO_BYTE);
-			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length);
+			interruptedPacket = new DatagramPacket(interruptedSegment, interruptedSegment.length, clientAddress, clientPort);
 		} else {
 			// packet is intact
 			interruptedPacket = dataPacket;

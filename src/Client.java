@@ -62,8 +62,8 @@ public class Client {
 			DataPacket packet = new DataPacket(dataSegment);
 			//corruptPacket(packet);
 			printIncomingPacket(packet);
-			
-			if (packet.isValid() || allPackets.get(allPackets.size() - 1).getAckno() == packet.ackno) {
+			boolean packetAlreadyRecieved = allPackets.get(allPackets.size() - 1).getAckno() == packet.ackno;			
+			if (packet.isValid() || packetAlreadyRecieved) {
 				sendAck(packet.getAckno(), socket, serverAddress);
 			} 
 			if (packet.isValid() && inWindow(packet)) {
@@ -104,17 +104,13 @@ public class Client {
 		long time = System.currentTimeMillis();
 		String action = "RECV";
 		String condition = "RECV";
-		String message = "Datagram " + packet.getSeqno() + " was received successfully";
 		if (!packet.isValid()) {
-			message = "Datagram " + packet.getSeqno() + " was received but with an error";
 			condition = "CRPT";
 		}
 		if (!isExpected(packet)) {
-			message = "Datagram " + packet.getSeqno() + " was received out of order";
 			condition = "!Seq";
 		}
 		if (duplicate(packet)) {
-			message = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
 			action = "DUPL";
 		}
 		//System.out.println(message);
@@ -137,13 +133,6 @@ public class Client {
 			}
 		}
 		return false;
-	}
-
-	private static void corruptPacket(DataPacket packet) {
-		Random rand = new Random();
-		if (rand.nextFloat() <= datagramPercentage) {
-			packet.corrupt();
-		}
 	}
 
 	private static boolean inWindow(DataPacket packet) {

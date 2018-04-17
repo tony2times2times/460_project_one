@@ -344,44 +344,39 @@ public class Server {
 					// Send each data packet
 					for (int i = 0; i < dataSegments.size(); i++) {
 						// repeat until positive acknowledgement is received
-						try {
-							while (true) {
-								try {
-									// create a data packet
-									DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
-												dataSegments.get(i).length, clientAddress, clientPort);
+						
+						while (true) {
+							try {
+								// create a data packet
+								DatagramPacket dataPacket = new DatagramPacket(dataSegments.get(i),
+											dataSegments.get(i).length, clientAddress, clientPort);
 									
-									// interrupt the data packet
-									dataPacket = interruptPacket(dataPacket);
-									
-									// prepare ack-only packet from client
-									byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
-									DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
+								// interrupt the data packet
+								dataPacket = interruptPacket(dataPacket);
 								
-									// packet may be corrupted but is not dropped so send
-									if(!isPacketDropped(dataPacket.getData())) datagramSocket.send(dataPacket);
-									printDataPacket(dataPacket.getData());
-									datagramSocket.setSoTimeout(timeoutInterval);
+								// prepare ack-only packet from client
+								byte[] ackOnlySegment = new byte[ACK_ONLY_PACKET_SIZE];
+								DatagramPacket ackOnlyPacket = new DatagramPacket(ackOnlySegment, ackOnlySegment.length);
+								
+								// packet may be corrupted but is not dropped so send
+								if(!isPacketDropped(dataPacket.getData())) datagramSocket.send(dataPacket);
+								printDataPacket(dataPacket.getData());
+								datagramSocket.setSoTimeout(timeoutInterval);
+								datagramSocket.receive(ackOnlyPacket);
+								while(isPacketDropped(ackOnlyPacket.getData())) {
 									datagramSocket.receive(ackOnlyPacket);
-									printAckPacket(ackOnlyPacket.getData());
-									if(isPacketIntact(ackOnlyPacket)) {
-										isResend = false;
-										break;
-									}
-								} catch(SocketTimeoutException e) {
-									printTimeout(i + 1);
-									isResend = true;
 								}
-							} 
-						} catch(SocketTimeoutException e) {
-							printTimeout(i + 1);
-							isResend = true;
-							i--;
-						} catch(NullPointerException e) {
-							System.out.println("null");
-							isResend = true;
-							i--;
-						}
+								printAckPacket(ackOnlyPacket.getData());
+								if(isPacketIntact(ackOnlyPacket)) {
+									isResend = false;
+									break;
+								}								
+							} catch(SocketTimeoutException e) {
+								printTimeout(i + 1);
+								isResend = true;
+							}
+						} 
+					
 					}
 					// close the server socket
 					datagramSocket.close();
@@ -511,7 +506,9 @@ public class Server {
 			return;
 		} else if(cksumShort == 1) {
 			System.out.println("AckRcvd " + ackno + " ErrAck.");
-		} 
+		} else {
+			isResend = true;
+		}
 	}
 	
 	private static boolean isPacketDropped(byte[] dataSegment) {

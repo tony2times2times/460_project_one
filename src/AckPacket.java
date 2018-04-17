@@ -47,4 +47,8 @@ public class AckPacket extends Packet{
 	public void validCheckSum() {
 		checksum =0;
 	}
+	
+	public boolean isDropped() {
+		return checksum == 2;
+	}
 }

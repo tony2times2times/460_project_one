@@ -13,6 +13,7 @@ public class Client {
 	static CommandLineParser parser = new DefaultParser();
 	static HelpFormatter formatter = new HelpFormatter();
 	static CommandLine cmd = null;
+	static boolean isDuplicate = false;
 	static ArrayList<DataPacket> allPackets = new ArrayList<DataPacket>();
 	private static int sizeOfWindow;
 	private static int[] window;
@@ -21,6 +22,7 @@ public class Client {
 	private static double datagramPercentage = 0.25;
 	private static InetAddress serverAddress;
 	private static int clientPort = 0;
+	
 
 	/** The running. */
 	private static boolean running = true;
@@ -60,13 +62,15 @@ public class Client {
 			DataPacket packet = new DataPacket(dataSegment);
 			//corruptPacket(packet);
 			printIncomingPacket(packet);
-			if (packet.isValid()) {
+			
+			if (packet.isValid() || allPackets.get(allPackets.size() - 1).getAckno() == packet.ackno) {
 				sendAck(packet.getAckno(), socket, serverAddress);
-			}
+			} 
 			if (packet.isValid() && inWindow(packet)) {
 				allPackets.add(packet);
 				boolean allPacketsRecieved = packet.getTotalPackets() == allPackets.size();
 				if (allPacketsRecieved) {
+					sendLastAck(packet.getAckno(), socket, serverAddress);
 					// sort the packets by seqno in case they were received out of order
 					allPackets.sort(Comparator.comparingInt(DataPacket::getSeqno));
 					byte[] fileBytes = getBytes();
@@ -113,7 +117,7 @@ public class Client {
 			message = "Datagram " + packet.getSeqno() + " was received a second time (duplicate)";
 			action = "DUPL";
 		}
-		System.out.println(message);
+		//System.out.println(message);
 		System.out.println(action + " " + time + " " + packet.getSeqno() + " " + condition);
 	}
 
@@ -232,6 +236,14 @@ public class Client {
 
 	}
 
+	private static void sendLastAck(int ackno, DatagramSocket socket, InetAddress hostAddress) throws IOException {
+		AckPacket ack = new AckPacket((short) 0, ackno);
+		DatagramPacket out = new DatagramPacket(ack.toDataSegment(), ack.toDataSegment().length, hostAddress,
+				serverPort);
+		socket.send(out);
+
+	}
+	
 	private static void corruptAck(AckPacket ack) {
 		Random rand = new Random();
 		if (rand.nextFloat() < datagramPercentage) {

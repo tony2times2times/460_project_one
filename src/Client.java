@@ -13,7 +13,6 @@ public class Client {
 	static CommandLineParser parser = new DefaultParser();
 	static HelpFormatter formatter = new HelpFormatter();
 	static CommandLine cmd = null;
-	static boolean isDuplicate = false;
 	static ArrayList<DataPacket> allPackets = new ArrayList<DataPacket>();
 	private static int sizeOfWindow;
 	private static int[] window;
@@ -61,9 +60,8 @@ public class Client {
 			byte[] dataSegment = getDataSegment(socket);
 			DataPacket packet = new DataPacket(dataSegment);
 			//corruptPacket(packet);
-			printIncomingPacket(packet);
-			boolean packetAlreadyRecieved = allPackets.get(allPackets.size() - 1).getAckno() == packet.ackno;			
-			if (packet.isValid() || packetAlreadyRecieved) {
+			printIncomingPacket(packet);			
+			if (packet.isValid() || alreadyRecieved(packet)) {
 				sendAck(packet.getAckno(), socket, serverAddress);
 			} 
 			if (packet.isValid() && inWindow(packet)) {
@@ -83,6 +81,15 @@ public class Client {
 			}
 		}
 		socket.close();
+	}
+	
+	private static boolean alreadyRecieved(DataPacket packet) {
+		for (DataPacket dataPacket : allPackets) {
+			if (dataPacket.getSeqno() == packet.getSeqno()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static void printAckOut(AckPacket ack) {
